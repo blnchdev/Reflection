@@ -51,30 +51,30 @@ With those keywords:
 | [...]                  | Reads the result of the expression inside the brackets |
 
 ##### Examples
-`[PEB+0x10]` resolves to the process base address, as said offset is defined as `ImageBaseAddress`
+`[PEB+0x10]` resolves to the process base address, as said offset is defined as `ImageBaseAddress`  
 `[[PEB+0x18]+0x10]` resolves to _PEB->Ldr->InLoadOrderModuleList->Flink as shown below
 
 | PEB Raw View                                     | Formatted                                        |
 |--------------------------------------------------|--------------------------------------------------|
 | <figure align="center"><img src="https://blanche.dev/img/Reflection/PEB1.png" width="400" /></figure> | <figure align="center"><img src="https://blanche.dev/img/Reflection/PEB2.png" width="400" /></figure>
 
-Of course, the parser supports both decimal and hexadecimal values. Hexadecimal values need to be prefixed by `0x` to be valid though.
+Of course, the parser supports both decimal and hexadecimal values. Hexadecimal values need to be prefixed by `0x` to be valid though.  
 
 #### VA Indexing
-If possible, Virtual Addresses are indexed via their contained module, e.g.:
+If possible, Virtual Addresses are indexed via their contained module, e.g.:  
 
 <figure align="center">
   <img src="https://blanche.dev/img/Reflection/Module.png" width="600" />
 </figure>
 
-Pointers also check for validity, an invalid (or nullptr) pointer will render differently, e.g.:
+Pointers also check for validity, an invalid (or nullptr) pointer will render differently, e.g.:  
 
 <figure align="center">
   <img src="https://blanche.dev/img/Reflection/nullptr.png" width="600" />
 </figure>
 
 #### Function Disassembling
-Through Zydis, ASM bytecode is disassembled back into human readable instructions as such:
+Through Zydis, ASM bytecode is disassembled back into human readable instructions as such:  
 
 <figure align="center">
   <img src="https://blanche.dev/img/Reflection/Zydis1.png" width="200" />
