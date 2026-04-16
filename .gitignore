@@ -1,0 +1,87 @@
+# VS/Machine Local
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.env
+
+# ReSharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# Build Stuff
+[Dd]ebug/
+[Rr]elease/
+[Dd]ebugPublic/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+[Aa][Rr][Mm]64[Ee][Cc]/
+[Oo]bj/
+[Oo]ut/
+bld/
+[Ll]og/
+[Ll]ogs/
+
+# C++ inters
+ipch/
+*.aps
+*.ilk
+*.idb
+*.iobj
+*.ipdb
+*.ncb
+*.obj
+*.pch
+*.pdb
+*.pgc
+*.pgd
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.VC.db
+*.VC.VC.opendb
+*.opendb
+*.opensdf
+*.sdf
+*.cachefile
+
+# Generated C++
+*_i.c
+*_p.c
+*_h.h
+
+# Random VS stuff
+*.tmp
+*.tlog
+*.binlog
+*.vspscc
+*.vssscc
+.builds
+Generated Files/
+MSBuild_Logs/
+
+# Profiler
+*.psess
+*.vsp
+*.vspx
+*.sap
+*.nvuser
+
+# VS History/Local
+.vshistory/
+**/.localhistory/
+
+# NuGet (lol)
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nupkg
+*.snupkg
+*.nuget.props
+*.nuget.targets

@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{7ff7ee87-3f37-4f1a-b3ff-6c3167efbb00}</ProjectGuid>
+    <RootNamespace>Reflection</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.props" />
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <IncludePath>$(ProjectDir);$(ProjectDir)Libraries/Dear ImGui;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Label="Vcpkg" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <VcpkgUseStatic>true</VcpkgUseStatic>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="Components\Class Manager\ClassManager.cpp" />
+    <ClCompile Include="Components\Config\Config.cpp" />
+    <ClCompile Include="Components\FontManager\FontManager.cpp" />
+    <ClCompile Include="Components\Graphics\Graphics.cpp" />
+    <ClCompile Include="Components\Layout\Dissector\Grid\Grid.cpp" />
+    <ClCompile Include="Components\Layout\Dissector\Options\Options.cpp" />
+    <ClCompile Include="Components\Layout\LayoutMaster.cpp" />
+    <ClCompile Include="Components\Layout\Dissector\Dissector.cpp" />
+    <ClCompile Include="Components\Layout\Dissector\ToolBar\ClassBrowser\ClassBrowser.cpp" />
+    <ClCompile Include="Components\Layout\Dissector\ToolBar\AttachPanel\AttachPanel.cpp" />
+    <ClCompile Include="Components\Layout\Dissector\ToolBar\SideBar.cpp" />
+    <ClCompile Include="Components\Layout\Dissector\ToolBar\TypePicker\TypePicker.cpp" />
+    <ClCompile Include="Components\Layout\Objects\Button\Button.cpp" />
+    <ClCompile Include="Components\Layout\Objects\Line\Line.cpp" />
+    <ClCompile Include="Components\Layout\Objects\Search Bar\SearchBar.cpp" />
+    <ClCompile Include="Components\Memory Manager\Memory.cpp" />
+    <ClCompile Include="Components\Memory Manager\MemoryStructs.cpp" />
+    <ClCompile Include="Components\Notifications\Notifications.cpp" />
+    <ClCompile Include="Components\Parser\Parser.cpp" />
+    <ClCompile Include="Components\Process Manager\Process.cpp" />
+    <ClCompile Include="Components\Renderer\Renderer.cpp" />
+    <ClCompile Include="Components\Theme Manager\Theme Manager.cpp" />
+    <ClCompile Include="Components\Title Bar\TitleBar.cpp" />
+    <ClCompile Include="Definitions\Globals.cpp" />
+    <ClCompile Include="Libraries\Dear ImGui\backends\imgui_impl_dx11.cpp" />
+    <ClCompile Include="Libraries\Dear ImGui\backends\imgui_impl_win32.cpp" />
+    <ClCompile Include="Libraries\Dear ImGui\imgui.cpp" />
+    <ClCompile Include="Libraries\Dear ImGui\imgui_demo.cpp" />
+    <ClCompile Include="Libraries\Dear ImGui\imgui_draw.cpp" />
+    <ClCompile Include="Libraries\Dear ImGui\imgui_tables.cpp" />
+    <ClCompile Include="Libraries\Dear ImGui\imgui_widgets.cpp" />
+    <ClCompile Include="Libraries\Dear ImGui\misc\freetype\imgui_freetype.cpp" />
+    <ClCompile Include="Reflection.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Components\Class Manager\ClassManager.h" />
+    <ClInclude Include="Components\Config\Config.h" />
+    <ClInclude Include="Components\FontManager\FontManager.h" />
+    <ClInclude Include="Components\FontManager\GeistMono.h" />
+    <ClInclude Include="Components\FontManager\JetbrainsMono.h" />
+    <ClInclude Include="Components\FontManager\NotoEmoji.h" />
+    <ClInclude Include="Components\Graphics\Graphics.h" />
+    <ClInclude Include="Components\Layout\Dissector\Grid\Grid.h" />
+    <ClInclude Include="Components\Layout\Dissector\Options\Options.h" />
+    <ClInclude Include="Components\Layout\LayoutMaster.h" />
+    <ClInclude Include="Components\Layout\Dissector\Dissector.h" />
+    <ClInclude Include="Components\Layout\Dissector\ToolBar\ClassBrowser\ClassBrowser.h" />
+    <ClInclude Include="Components\Layout\Dissector\ToolBar\AttachPanel\AttachPanel.h" />
+    <ClInclude Include="Components\Layout\Dissector\ToolBar\SideBar.h" />
+    <ClInclude Include="Components\Layout\Dissector\ToolBar\TypePicker\TypePicker.h" />
+    <ClInclude Include="Components\Layout\Objects\Button\Button.h" />
+    <ClInclude Include="Components\Layout\Objects\Line\Line.h" />
+    <ClInclude Include="Components\Layout\Objects\Search Bar\SearchBar.h" />
+    <ClInclude Include="Components\Memory Manager\MemoryDefs.h" />
+    <ClInclude Include="Components\Memory Manager\Memory.h" />
+    <ClInclude Include="Components\Memory Manager\MemoryStructs.h" />
+    <ClInclude Include="Components\Notifications\Notifications.h" />
+    <ClInclude Include="Components\Parser\Parser.h" />
+    <ClInclude Include="Components\Process Manager\Process.h" />
+    <ClInclude Include="Components\Renderer\ProcessIcon.h" />
+    <ClInclude Include="Components\Renderer\Renderer.h" />
+    <ClInclude Include="Components\Theme Manager\Theme Manager.h" />
+    <ClInclude Include="Components\Theme Manager\Themes\CatppuccinFrappe.h" />
+    <ClInclude Include="Components\Theme Manager\Themes\CatppuccinLatte.h" />
+    <ClInclude Include="Components\Theme Manager\Themes\CatppuccinMacchiato.h" />
+    <ClInclude Include="Components\Theme Manager\Themes\CatppuccinMocha.h" />
+    <ClInclude Include="Components\Theme Manager\Themes\DarkIslands.h" />
+    <ClInclude Include="Components\Theme Manager\Themes\LightIslands.h" />
+    <ClInclude Include="Components\Title Bar\TitleBar.h" />
+    <ClInclude Include="Definitions\Globals.h" />
+    <ClInclude Include="Definitions\NtDefs.h" />
+    <ClInclude Include="Libraries\Aether\Aether.h" />
+    <ClInclude Include="Libraries\Dear ImGui\backends\imgui_impl_dx11.h" />
+    <ClInclude Include="Libraries\Dear ImGui\backends\imgui_impl_win32.h" />
+    <ClInclude Include="Libraries\Dear ImGui\imconfig.h" />
+    <ClInclude Include="Libraries\Dear ImGui\imgui.h" />
+    <ClInclude Include="Libraries\Dear ImGui\imgui_internal.h" />
+    <ClInclude Include="Libraries\Dear ImGui\imstb_rectpack.h" />
+    <ClInclude Include="Libraries\Dear ImGui\imstb_textedit.h" />
+    <ClInclude Include="Libraries\Dear ImGui\imstb_truetype.h" />
+    <ClInclude Include="Libraries\Dear ImGui\misc\freetype\imgui_freetype.h" />
+    <ClInclude Include="Libraries\nlohmann\json.hpp" />
+    <ClInclude Include="Libraries\toml.hpp" />
+    <ClInclude Include="Libraries\Vector.h" />
+    <ClInclude Include="Libraries\Wraith\Wraith.hpp" />
+    <ClInclude Include="Libraries\xorstr.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="Libraries\Aether\Aether.asm" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.targets" />
+  </ImportGroup>
+</Project>
