@@ -9,6 +9,6 @@ namespace Memory::Structs
 namespace ClassManager
 {
 	Memory::Structs::Info* GetInstanceFromName( std::string_view Name );
-	void                   AddToManager( Memory::Structs::Info* Template, std::string_view Path, bool IsCompilteTimeTemplate = false );
+	void                   AddToManager( Memory::Structs::Info* Template, std::string_view Path, bool IsCompileTimeTemplate = false );
 	void                   Initialize();
 }

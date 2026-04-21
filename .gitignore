@@ -85,3 +85,4 @@ MSBuild_Logs/
 *.snupkg
 *.nuget.props
 *.nuget.targets
+Layout.ini

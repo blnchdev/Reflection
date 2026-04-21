@@ -24,7 +24,7 @@ namespace ClassManager
 		// TODO: Think about this implementation carefully
 
 		// Forward Declarations
-		std::string GetPathByTemplateName( std::string_view Name );
+		std::optional<std::string> GetPathByTemplateName( std::string_view Name );
 
 		void FieldToJSON( json& J, const Memory::Structs::Field& Field )
 		{
@@ -106,7 +106,7 @@ namespace ClassManager
 				}
 			}
 
-			void Parse()
+			void Parse() const
 			{
 				std::ifstream File( Absolute );
 				if ( !File.is_open() ) return; // TODO: Log
@@ -118,7 +118,7 @@ namespace ClassManager
 				JSONToTemplate( J, BackingData.get() );
 			}
 
-			void Save()
+			void Save() const
 			{
 				json J = {};
 				TemplateToJSON( J, BackingData.get() );
@@ -136,7 +136,7 @@ namespace ClassManager
 
 		struct ClassDirectory
 		{
-			ClassDirectory( std::filesystem::path Root ) : Path( std::move( Root ) )
+			explicit ClassDirectory( std::filesystem::path Root ) : Path( std::move( Root ) )
 			{
 				if ( !std::filesystem::is_directory( Path ) )
 				{
@@ -180,10 +180,25 @@ namespace ClassManager
 			return Path;
 		}
 
-		std::string GetPathByTemplateName( std::string_view Name )
+		std::optional<std::string> GetPathByTemplateName( const std::string_view Name )
 		{
-			return _( "Not Implemented" );
+			if ( !Root ) return std::nullopt;
+
+			auto TryMatch = [&] ( const ClassFile& File )
+			{
+				return File.BackingData && Name == File.BackingData->Label;
+			};
+
+			const auto Iterator = std::ranges::find_if( Root->Files, TryMatch );
+
+			if ( Iterator == Root->Files.end() ) return std::nullopt;
+
+			return Iterator->Relative.string();
 		}
+	}
+
+	Memory::Structs::Info* GetInstanceFromName( std::string_view Name )
+	{
 	}
 
 	void AddToManager( Memory::Structs::Info* Template, std::string_view Path, bool IsCompileTimeTemplate )
@@ -233,7 +248,16 @@ namespace ClassManager
 
 		Root = std::make_unique<ClassDirectory>( Path.value() );
 
+		AddToManager( &Memory::Structs::LIST_ENTRY, "/Win32/Types/", true );
+		AddToManager( &Memory::Structs::PEB_LDR_DATA, "/Win32/Usermode/", true );
+
+		AddToManager( &Memory::Structs::CURDIR, "/Win32/Types/", true );
+		AddToManager( &Memory::Structs::UNICODE_STRING, "/Win32/Types/", true );
+		AddToManager( &Memory::Structs::RTL_DRIVE_LETTER_CURDIR, "/Win32/Types/", true );
+		AddToManager( &Memory::Structs::RTL_USER_PROCESS_PARAMETERS, "/Win32/Usermode/", true );
+
 		AddToManager( &Memory::Structs::PEB, "/Win32/Usermode/", true );
+		AddToManager( &Memory::Structs::KERNEL_CALLBACK_TABLE, "/Win32/Usermode/", true );
 
 		std::println( "Files Size {}", Root->Files.size() );
 
