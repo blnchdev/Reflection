@@ -11,11 +11,11 @@ namespace Renderer::Layout
 	class ClassBrowser
 	{
 	public:
-		static void                   Render( Vector2f Cursor, Vector2f AvailableSize );
-		static bool                   WndProc( Vector2f CursorPosition, UINT Message, WPARAM wParam, LPARAM lParam );
-		static void                   OnSelect();
-		static void                   DrainPending();
-		static Memory::Structs::Info* GetInstanceFromSelectedTemplate();
-		static void                   Initialize();
+		static void          Render( Vector2f Cursor, Vector2f AvailableSize );
+		static bool          WndProc( Vector2f CursorPosition, UINT Message, WPARAM wParam, LPARAM lParam );
+		static void          OnSelect();
+		static void          DrainPending();
+		static Memory::Info* GetInstanceFromSelectedTemplate();
+		static void          Initialize();
 	};
 }

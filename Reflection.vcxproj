@@ -171,6 +171,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Components\Class Manager\ClassManager.h" />
+    <ClInclude Include="Components\Class Manager\Templates.h" />
     <ClInclude Include="Components\Config\Config.h" />
     <ClInclude Include="Components\FontManager\FontManager.h" />
     <ClInclude Include="Components\FontManager\GeistMono.h" />

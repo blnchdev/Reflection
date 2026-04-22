@@ -269,6 +269,9 @@
     <ClInclude Include="Libraries\nlohmann\json.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Components\Class Manager\Templates.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <MASM Include="Libraries\Aether\Aether.asm">

@@ -30,7 +30,7 @@ namespace Objects
 		Line( Line&& )                 = default;
 		Line& operator=( Line&& )      = default;
 
-		void              Render( Vector2f& Cursor, Renderer::Layout::RenderParameters* RenderData, Memory::Structs::Info* Structure, Memory::Structs::Field* Field, size_t& i, bool IsSelected );
+		void              Render( Vector2f& Cursor, Renderer::Layout::RenderParameters* RenderData, Memory::Info* BackingData, Memory::Field* Field, size_t& i, bool IsSelected );
 		LineWndProcResult WndProc( const Vector2f& CursorPos, uint32_t Message, WPARAM wParam, LPARAM lParam ) const;
 		void              EnsureExpandButton();
 		void              ClearExpandButton() { ExpandButton = nullptr; }

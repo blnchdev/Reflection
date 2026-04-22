@@ -7,6 +7,7 @@
 #include <variant>
 #include <Zydis/Zydis.h>
 
+#include "Components/Class Manager/ClassManager.h"
 #include "Components/Config/Config.h"
 #include "Components/Graphics/Graphics.h"
 #include "Components/Layout/Dissector/Dissector.h"
@@ -258,19 +259,24 @@ namespace Renderer::Layout
 		}
 
 		// TODO: This is pretty unsafe right now
-		Memory::Structs::Field* GetField( LineData& LD )
+		Memory::Field* GetField( LineData& LD )
 		{
 			if ( LD.IsSynthetic() ) return &LD.PaddingField.value();
-			return &Template.Fields[ static_cast<size_t>( LD.SourceIndex ) ];
+			return &BackingData->Fields[ static_cast<size_t>( LD.SourceIndex ) ];
 		}
 
 		size_t GetOffset( const LineData& LD ) const
 		{
-			return LD.IsSynthetic() ? LD.PaddingField->Offset : Template.Fields[ LD.SourceIndex ].Offset;
+			return LD.IsSynthetic() ? LD.PaddingField->Offset : BackingData->Fields[ LD.SourceIndex ].Offset;
 		}
 
 		void Render( Vector2f& Cursor, size_t& i, bool JustConsumedSnapshot = false )
 		{
+			if ( !this->BackingData )
+			{
+				return;
+			}
+
 			if ( Depth == 0 )
 			{
 				const bool Consumed = Owner->Group->TryConsume( Node, Snapshot );
@@ -327,7 +333,7 @@ namespace Renderer::Layout
 			if ( fabsf( ScrollTarget - ScrollOffset ) > SCROLL_SNAP_DIST ) ScrollOffset += ( ScrollTarget - ScrollOffset ) * ( 1.f - std::expf( -SCROLL_DECAY * DeltaTime ) );
 			else ScrollOffset = ScrollTarget;
 
-			this->Template.RefreshMaxWidth();
+			this->BackingData->RefreshMaxWidth();
 
 			const auto WindowData = Window::GetWindowData();
 
@@ -434,15 +440,15 @@ namespace Renderer::Layout
 
 					auto OnChange = [this] ( const std::string& NewString, const bool WasCompleted )
 					{
-						this->Template.Label = NewString;
+						this->BackingData->Label = NewString;
 
-						if ( WasCompleted && this->Template.Label.empty() ) this->Template.Label = _( "Unnamed" );
+						if ( WasCompleted && this->BackingData->Label.empty() ) this->BackingData->Label = _( "Unnamed" );
 					};
 
 					FontManager::AddSelectableText( "Class '", 16.f, Color, ScrolledCursor, false, DT_VCENTER );
 					ScrolledCursor.x += Prefix.x;
-					FontManager::AddModifiableText( this->Template.Label, 16.f, Color, ScrolledCursor, false, DT_VCENTER, 0, OnChange );
-					ScrolledCursor.x += FontManager::FontSize( this->Template.Label, 16.f, false ).x;
+					FontManager::AddModifiableText( this->BackingData->Label, 16.f, Color, ScrolledCursor, false, DT_VCENTER, 0, OnChange );
+					ScrolledCursor.x += FontManager::FontSize( this->BackingData->Label, 16.f, false ).x;
 					FontManager::AddSelectableText( "'", 16.f, Color, ScrolledCursor, false, DT_VCENTER );
 					ScrolledCursor.x += Suffix.x + HEADER_PADDING;
 				}
@@ -465,7 +471,7 @@ namespace Renderer::Layout
 
 						const uintptr_t NewSize = Parser::ParseComplex( this->SizeString, this->Node->GetPID() );
 						this->Node->SetSize( NewSize );
-						this->Template.Size          = NewSize;
+						this->BackingData->Size      = NewSize;
 						this->RecalculationScheduled = true;
 						this->ScheduleRead();
 					};
@@ -525,8 +531,8 @@ namespace Renderer::Layout
 				FloatBuffer += max( AddressStringSize, MaxAddressSize );
 				Data.Columns.NamedTypeOrLabel = FloatBuffer;
 			}
-			CalculateAndSetOffset( Data.Columns.HexOrLabel, max( Template.RenderMetrics.TypeWidth, Template.RenderMetrics.LabelWidth ) );
-			CalculateAndSetOffset( Data.Columns.Chars, max( HexRepresentationSize, Template.RenderMetrics.LabelWidth ) );
+			CalculateAndSetOffset( Data.Columns.HexOrLabel, max( BackingData->RenderMetrics.TypeWidth, BackingData->RenderMetrics.LabelWidth ) );
+			CalculateAndSetOffset( Data.Columns.Chars, max( HexRepresentationSize, BackingData->RenderMetrics.LabelWidth ) );
 			CalculateAndSetOffset( Data.Columns.Formatted, CharRepresentationSize );
 
 			Data.HexWidth  = HexSize.x;
@@ -534,8 +540,8 @@ namespace Renderer::Layout
 
 			auto RenderSlot = [&] ( LineSlot* S )
 			{
-				auto&                   LD    = S->Data;
-				Memory::Structs::Field* Field = this->GetField( LD );
+				auto&          LD    = S->Data;
+				Memory::Field* Field = this->GetField( LD );
 
 				const float LineTop     = ScrolledCursor.y;
 				const float LineBottom  = LineTop + LINE_HEIGHT;
@@ -545,7 +551,7 @@ namespace Renderer::Layout
 				{
 					const size_t LineOffset = GetOffset( LD );
 					const bool   IsSelected = SelectedOffsets.contains( LineOffset );
-					S->Line.Render( ScrolledCursor, &Data, &Template, Field, i, IsSelected );
+					S->Line.Render( ScrolledCursor, &Data, BackingData.get(), Field, i, IsSelected );
 				}
 				else
 				{
@@ -664,14 +670,37 @@ namespace Renderer::Layout
 		// Returns true if any line changed, false otherwise
 		bool ChangeSelectedLines( const DataStructureType Type )
 		{
-			std::println( "ChangeSelectedLines({}) -> SelectedOffsets.empty() == {}", ( uint8_t )Type, SelectedOffsets.empty() );
-			if ( SelectedOffsets.empty() ) return false;
+			// Find matching IDX
+			auto Recurse = [] ( this auto& Self, View* Current ) -> View*
+			{
+				if ( !Current ) return nullptr;
+
+				if ( Current->IDX == SelectCursorViewIDX ) return Current;
+
+				for ( const auto& Line : Current->DefinedLines | std::views::values )
+				{
+					if ( auto* Found = Self( Line.Data.Embedded.Child ) )
+					{
+						return Found;
+					}
+				}
+
+				return nullptr;
+			};
+
+			View* SelectedView = Recurse( this );
+
+			if ( !SelectedView || SelectedView->SelectedOffsets.empty() )
+			{
+				std::println( "ChangeSelectedLines::SelectedView nullptr or SelectedOffsets empty (0x{:X}", reinterpret_cast<uintptr_t>( SelectedView ) );
+				return false;
+			}
 
 			bool RequiresImmediate = false;
-			std::println( "SelectedOffsets.size() = {}", SelectedOffsets.size() );
+			std::println( "SelectedOffsets.size() = {}", SelectedView->SelectedOffsets.size() );
 
 			// TODO: This has the same issue as ReClass for now, just get Min/Max and actually set each and every field, not just the "selected" ones
-			std::ranges::for_each( SelectedOffsets, [&] ( const size_t Offset ) { this->ChangeFieldType( Offset, Type, RequiresImmediate ); } );
+			std::ranges::for_each( SelectedView->SelectedOffsets, [&] ( const size_t Offset ) { SelectedView->ChangeFieldType( Offset, Type, RequiresImmediate ); } );
 			std::println( "RequiresImmediate = {}", RequiresImmediate );
 
 			if ( RequiresImmediate ) Recalculate();
@@ -705,14 +734,14 @@ namespace Renderer::Layout
 
 			// TODO: Frankly this is left over code from my 1st iteration of this class, I'm unsure if we need this part?
 			RequiresImmediateChange = true;
-			Memory::Structs::Field NewField( Type, Offset );
-			Template.Fields.push_back( std::move( NewField ) );
+			Memory::Field NewField( Type, Offset );
+			BackingData->Fields.push_back( std::move( NewField ) );
 			HandleRecalculation();
 		}
 
-		void EnsureNoOverlap( const size_t Offset, const size_t Size )
+		void EnsureNoOverlap( const size_t Offset, const size_t Size ) const
 		{
-			std::erase_if( Template.Fields, [&] ( const Memory::Structs::Field& F )
+			std::erase_if( BackingData->Fields, [&] ( const Memory::Field& F )
 			{
 				return F.Offset < Offset + Size && F.Offset + F.Size > Offset;
 			} );
@@ -721,17 +750,12 @@ namespace Renderer::Layout
 		void RequestRecalculation() { this->RecalculationScheduled = true; }
 
 		// Getter/Setters
-		const Memory::Structs::Info& GetStructureTemplate() const { return Template; }
+		// const Memory::Structs::Info& GetStructureTemplate() const { return BackingData; }
+		std::shared_ptr<Memory::Info> GetBackingData() const { return BackingData; }
 
-		void SetStructureTemplate( const Memory::Structs::Info* NewTemplate )
+		void SetBackingData( const std::shared_ptr<Memory::Info>& NewBackingData )
 		{
-			Template               = *NewTemplate;
-			RecalculationScheduled = true;
-		}
-
-		void SetStructureTemplate( const Memory::Structs::Info& NewTemplate )
-		{
-			Template               = NewTemplate;
+			BackingData            = NewBackingData;
 			RecalculationScheduled = true;
 		}
 
@@ -803,18 +827,18 @@ namespace Renderer::Layout
 
 			EnsureNoOverlap( Offset, ActualSize );
 
-			const auto Iterator = std::ranges::find_if( Template.Fields, [Offset] ( const Memory::Structs::Field& F )
+			const auto Iterator = std::ranges::find_if( BackingData->Fields, [Offset] ( const Memory::Field& F )
 			{
 				return F.Offset == Offset;
 			} );
 
-			const bool              RequiresPromotion = Iterator == Template.Fields.end();
-			Memory::Structs::Field* Target;
+			const bool     RequiresPromotion = Iterator == BackingData->Fields.end();
+			Memory::Field* Target;
 
 			if ( RequiresPromotion )
 			{
 				std::string NewName  = std::format( "Off_{:X}", Offset );
-				auto&       Inserted = Template.Fields.emplace_back( NewType, Offset, NewName );
+				auto&       Inserted = BackingData->Fields.emplace_back( NewType, Offset, NewName );
 				Target               = &Inserted;
 			}
 			else
@@ -826,9 +850,9 @@ namespace Renderer::Layout
 
 			// TODO: Maybe calling this late fucks something up?
 
-			Target->Type         = NewType;
-			Target->Size         = ActualSize;
-			Target->EmbeddedInfo = nullptr;
+			Target->Type     = NewType;
+			Target->Size     = ActualSize;
+			Target->Embedded = _( "RESERVED_NONE" );
 
 			if ( Target->IsPOD() )
 			{
@@ -850,12 +874,12 @@ namespace Renderer::Layout
 		// Returns true if the size changed, returns false if the size was unchanged or the field didn't exist in template
 		bool ChangeFieldSize( const size_t Offset, const size_t Size )
 		{
-			const auto Iterator = std::ranges::find_if( Template.Fields, [Offset] ( const Memory::Structs::Field& F )
+			const auto Iterator = std::ranges::find_if( BackingData->Fields, [Offset] ( const Memory::Field& F )
 			{
 				return F.Offset == Offset;
 			} );
 
-			if ( Iterator == Template.Fields.end() || Iterator->Size == Size ) return false;
+			if ( Iterator == BackingData->Fields.end() || Iterator->Size == Size ) return false;
 			Iterator->Size = Size;
 			return true;
 		}
@@ -925,7 +949,7 @@ namespace Renderer::Layout
 		{
 			if ( std::cmp_greater_equal( Depth, MaxDepth ) ) return;
 
-			for ( const auto& Field : Template.Fields )
+			for ( const auto& Field : BackingData->Fields )
 			{
 				if ( Field.IsPOD() ) continue;
 
@@ -936,9 +960,11 @@ namespace Renderer::Layout
 				LineSlot& Slot = Iterator->second;
 				LineData& LD   = Slot.Data;
 
+				const bool HasEmbeddedData = std::holds_alternative<std::shared_ptr<Memory::Info>>( Field.Embedded );
+
 				if ( !LD.Embedded.Child )
 				{
-					const size_t PointerSize    = Field.EmbeddedInfo ? Field.EmbeddedInfo->Size : 256;
+					const size_t PointerSize    = HasEmbeddedData ? std::get<std::shared_ptr<Memory::Info>>( Field.Embedded )->Size : 256;
 					View*        ChildView      = Owner->ExpandNode( Node, Field.Offset, PointerSize, Depth + 1 );
 					ChildView->Node->IsEmbedded = Field.Type == T_EmbeddedClass;
 					LD.Embedded.Child           = ChildView;
@@ -946,13 +972,14 @@ namespace Renderer::Layout
 
 				Slot.Line.EnsureExpandButton();
 
-				if ( Field.EmbeddedInfo )
+				if ( HasEmbeddedData )
 				{
-					LD.Embedded.Child->SetStructureTemplate( Field.EmbeddedInfo.get() );
+					LD.Embedded.Child->SetBackingData( std::get<std::shared_ptr<Memory::Info>>( Field.Embedded ) );
 				}
 				else
 				{
-					LD.Embedded.Child->SetStructureTemplate( Memory::Structs::Empty );
+					// TODO: There is probably a better way than a dummy Info
+					LD.Embedded.Child->SetBackingData( ClassManager::GetEmptyView() );
 					LD.Embedded.Child->SetSize( DefaultTabSize );
 				}
 			}
@@ -961,9 +988,9 @@ namespace Renderer::Layout
 		void Sort()
 		{
 			std::unordered_set<size_t> LiveOffsets;
-			LiveOffsets.reserve( Template.Fields.size() );
+			LiveOffsets.reserve( BackingData->Fields.size() );
 
-			for ( const auto&& [ Index, Field ] : Template.Fields | std::views::enumerate )
+			for ( const auto&& [ Index, Field ] : BackingData->Fields | std::views::enumerate )
 			{
 				const size_t Offset = Field.Offset;
 				LiveOffsets.insert( Offset );
@@ -985,10 +1012,10 @@ namespace Renderer::Layout
 			std::erase_if( DefinedLines, [&] ( const auto& Slot ) { return !LiveOffsets.contains( Slot.first ); } );
 			PaddingLines.clear();
 
-			std::vector<const Memory::Structs::Field*> Sorted;
-			Sorted.reserve( Template.Fields.size() );
-			std::ranges::for_each( Template.Fields, [&] ( const Memory::Structs::Field& F ) { Sorted.push_back( &F ); } );
-			std::ranges::sort( Sorted, {}, &Memory::Structs::Field::Offset );
+			std::vector<const Memory::Field*> Sorted;
+			Sorted.reserve( BackingData->Fields.size() );
+			std::ranges::for_each( BackingData->Fields, [&] ( const Memory::Field& F ) { Sorted.push_back( &F ); } );
+			std::ranges::sort( Sorted, {}, &Memory::Field::Offset );
 
 			uintptr_t CurrentOffset = 0;
 
@@ -1009,7 +1036,7 @@ namespace Renderer::Layout
 					}
 
 					LineData Pad;
-					Pad.PaddingField = Memory::Structs::Field( ChunkSize, CurrentOffset );
+					Pad.PaddingField = Memory::Field( ChunkSize, CurrentOffset );
 					Pad.SourceIndex  = -1;
 
 					auto& Slot = PaddingLines.emplace( CurrentOffset, LineSlot{} ).first->second;
@@ -1018,7 +1045,7 @@ namespace Renderer::Layout
 				}
 			};
 
-			auto HandleLine = [&] ( const Memory::Structs::Field* Field )
+			auto HandleLine = [&] ( const Memory::Field* Field )
 			{
 				EmitPadding( Field->Offset );
 				CurrentOffset = max( CurrentOffset, Field->Offset + Field->Size );
@@ -1058,7 +1085,7 @@ namespace Renderer::Layout
 		std::vector<LineSlot*>               RenderOrder;
 
 		// Backing Memory Structure
-		Memory::Structs::Info Template = Memory::Structs::Empty;
+		std::shared_ptr<Memory::Info> BackingData = nullptr;
 
 		// Scroll Values
 		float ScrollOffset   = 0.f;
@@ -1229,7 +1256,7 @@ namespace Renderer::Layout
 	{
 		namespace
 		{
-			void RenderPadding( Vector2f& Cursor, const Vector2f Original, Memory::Structs::Info* Template, LineData& Data, RenderParameters* RenderData )
+			void RenderPadding( Vector2f& Cursor, const Vector2f Original, Memory::Info* Template, LineData& Data, RenderParameters* RenderData )
 			{
 				std::string String = {};
 
@@ -1263,8 +1290,8 @@ namespace Renderer::Layout
 							break;
 						}
 
-						Memory::Structs::Field NewField = { Type, Offset, std::string( NewLabel ) };
-						NewField.IsNamed                = true;
+						Memory::Field NewField = { Type, Offset, std::string( NewLabel ) };
+						NewField.IsNamed       = true;
 						Template->Fields.push_back( std::move( NewField ) );
 						RenderData->ScheduleRecalculate = true;
 					}
@@ -1304,11 +1331,14 @@ namespace Renderer::Layout
 				Cursor.y += LINE_HEIGHT / 2.f;
 			}
 
-			void RenderRegular( Vector2f& Cursor, const Vector2f Original, Memory::Structs::Info* Template, Memory::Structs::Field* Field, const LineData& Data, RenderParameters* RenderData )
+			void RenderRegular( Vector2f& Cursor, const Vector2f Original, Memory::Info* Template, Memory::Field* Field, const LineData& Data, RenderParameters* RenderData )
 			{
 				std::string& PointerName = Field->Name;
 				std::string  ClassName   = _( "<UNNAMED CLASS>" );
-				if ( Data.Embedded.Child ) ClassName = _( "<" ) + Data.Embedded.Child->GetStructureTemplate().Label + _( ">" );
+				if ( Data.Embedded.Child && Data.Embedded.Child->GetBackingData() )
+				{
+					ClassName = _( "<" ) + Data.Embedded.Child->GetBackingData()->Label + _( ">" );
+				}
 
 				auto OnTextChange = [&, SourceIndex = Data.SourceIndex] ( const std::string& NewLabel, const bool WasCompleted )
 				{
@@ -1409,7 +1439,7 @@ namespace Renderer::Layout
 			Cursor.x = Origin.x;
 		}
 
-		void RenderLine( Vector2f& Cursor, RenderParameters* RenderData, LineData& Data, Memory::Structs::Info* Template, Memory::Structs::Field* Field, size_t& i, const bool IsSelected )
+		void RenderLine( Vector2f& Cursor, RenderParameters* RenderData, LineData& Data, Memory::Info* Template, Memory::Field* Field, size_t& i, const bool IsSelected )
 		{
 			const Vector2f Original = Cursor;
 			i++;
@@ -1457,14 +1487,28 @@ namespace Renderer::Layout
 		// This doesn't really align with our ProcessManager though, the idea at the start was to be able to be connected to multiple processes at once...
 		const uintptr_t PEB = Process::GetProcessPEB( PID );
 		NewTab( _( "ProcessBase" ), PID, Process::GetProcessBase( PID ), 1024 );
-		NewStructTab( _( "PEB" ), PID, PEB, Memory::Structs::PEB );
+		NewStructTab( _( "PEB" ), PID, PEB, _( "PEB" ) );
 	}
 
-	void Grid::NewStructTab( const std::string& Label, uint32_t PID, uintptr_t Address, const Memory::Structs::Info& Template, std::optional<size_t> Size )
+	void Grid::NewStructTab( const std::string& Label, uint32_t PID, uintptr_t Address, const std::string_view TemplateName, std::optional<size_t> Size )
 	{
-		const size_t ActualSize = Size.value_or( Template.Size );
-		auto         Class      = std::make_unique<ClassInstance>( Address, ActualSize, PID );
-		Class->RootData.View    = std::make_unique<View>( Class.get(), Class->RootData.Node, 0 );
+		const bool                    IsNonBacked = TemplateName == _( "RESERVED_EMPTY" );
+		std::shared_ptr<Memory::Info> BackingData = nullptr;
+		size_t                        ActualSize;
+
+		if ( IsNonBacked )
+		{
+			BackingData = ClassManager::InstantiateNonBacked( Size.value_or( 64 ) );
+		}
+		else
+		{
+			BackingData = ClassManager::GetInstanceFromName( TemplateName );
+		}
+
+		ActualSize = BackingData->Size;
+
+		auto Class           = std::make_unique<ClassInstance>( Address, ActualSize, PID );
+		Class->RootData.View = std::make_unique<View>( Class.get(), Class->RootData.Node, 0 );
 
 		View* Tab = Class->RootData.View.get();
 
@@ -1473,7 +1517,7 @@ namespace Renderer::Layout
 
 		Tab->Buttons.TabIDX   = Button.IDX;
 		Tab->Buttons.CloseIDX = CloseButton.IDX;
-		Tab->SetStructureTemplate( Template );
+		Tab->SetBackingData( BackingData );
 
 		Button.Callback = &Grid::OnButtonCallback;
 		Button.Type     = Objects::ButtonType::Rectangle;
@@ -1492,7 +1536,7 @@ namespace Renderer::Layout
 
 	void Grid::NewTab( const std::string& Label, const uint32_t PID, const uintptr_t Address, size_t Size )
 	{
-		NewStructTab( Label, PID, Address, Memory::Structs::Empty, Size );
+		NewStructTab( Label, PID, Address, _( "RESERVED_EMPTY" ), Size );
 	}
 
 	void Grid::Present( Vector2f& Cursor, const Vector2f AvailableSize, float Opacity )
@@ -1594,7 +1638,11 @@ namespace Renderer::Layout
 	void Grid::ChangeSelected( const DataStructureType NewType )
 	{
 		const auto* ActiveTab = GetActiveTab();
-		if ( ActiveTab && ActiveTab->RootData.View ) ActiveTab->RootData.View->ChangeSelectedLines( NewType );
+
+		if ( ActiveTab && ActiveTab->RootData.View )
+		{
+			ActiveTab->RootData.View->ChangeSelectedLines( NewType );
+		}
 	}
 
 	void Grid::OnButtonCallback( const Objects::Button* Instance )
@@ -1628,9 +1676,9 @@ namespace Renderer::Layout
 		ActiveTabIDX = Root->IDX;
 	}
 
-	const Memory::Structs::Info& Grid::GetInfoForView( const View* View )
+	std::shared_ptr<Memory::Info> Grid::GetInfoForView( const View* View )
 	{
-		return View->GetStructureTemplate();
+		return View->GetBackingData();
 	}
 
 	void Grid::RenderView( View* View, Vector2f& Cursor, size_t& i )

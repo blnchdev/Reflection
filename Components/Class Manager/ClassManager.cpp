@@ -5,6 +5,7 @@
 #include <string_view>
 #include <print>
 
+#include "Templates.h"
 #include "Components/Memory Manager/MemoryStructs.h"
 #include "Components/Notifications/Notifications.h"
 
@@ -16,6 +17,8 @@ namespace ClassManager
 {
 	namespace
 	{
+		using namespace Memory;
+
 		int64_t CurrentID = 0;
 
 		// TODO: Favorites/Favorite Directories (store in Config)
@@ -26,7 +29,7 @@ namespace ClassManager
 		// Forward Declarations
 		std::optional<std::string> GetPathByTemplateName( std::string_view Name );
 
-		void FieldToJSON( json& J, const Memory::Structs::Field& Field )
+		void FieldToJSON( json& J, const Field& Field )
 		{
 			J =
 			{
@@ -36,11 +39,18 @@ namespace ClassManager
 				{ "Size", Field.Size },
 			};
 
-			if ( Field.EmbeddedInfo ) J[ "Embedded" ] = GetPathByTemplateName( Field.EmbeddedInfo->Label );
-			else J[ "Embedded" ]                      = nlohmann::json( nullptr );
+			if ( std::holds_alternative<std::shared_ptr<Info>>( Field.Embedded ) )
+			{
+				auto& EmbeddedInfo = std::get<std::shared_ptr<Info>>( Field.Embedded );
+				J[ "Embedded" ]    = GetPathByTemplateName( EmbeddedInfo->Label );
+			}
+			else
+			{
+				J[ "Embedded" ] = nlohmann::json( nullptr );
+			}
 		}
 
-		void TemplateToJSON( json& J, const Memory::Structs::Info* Template )
+		void TemplateToJSON( json& J, const Info* Template )
 		{
 			J =
 			{
@@ -50,7 +60,7 @@ namespace ClassManager
 			json Buffer = {};
 			json Fields = json::array();
 
-			auto PushBack = [&] ( const Memory::Structs::Field& F )
+			auto PushBack = [&] ( const Field& F )
 			{
 				FieldToJSON( Buffer, F );
 				Fields.emplace_back( std::move( Buffer ) );
@@ -61,7 +71,7 @@ namespace ClassManager
 			J[ "Fields" ] = std::move( Fields );
 		}
 
-		void JSONToField( const json& J, Memory::Structs::Field& Field )
+		void JSONToField( const json& J, Field& Field )
 		{
 			J[ "Type" ].get_to( Field.Type );
 			J[ "Offset" ].get_to( Field.Offset );
@@ -70,18 +80,18 @@ namespace ClassManager
 
 			if ( J[ "Embedded" ].is_null() )
 			{
-				Field.EmbeddedInfo = nullptr;
+				Field.Embedded = _( "RESERVED_NONE" );
 			}
 			else
 			{
 				const auto RelativePath = J[ "Embedded" ].get<std::string>();
 				const auto Instance     = GetInstanceFromPath( RelativePath );
 
-				Field.EmbeddedInfo = Instance;
+				Field.Embedded = Instance;
 			}
 		}
 
-		void JSONToTemplate( const json& J, Memory::Structs::Info* Template )
+		void JSONToTemplate( const json& J, Info* Template )
 		{
 			J[ "Name" ].get_to( Template->Label );
 
@@ -89,7 +99,7 @@ namespace ClassManager
 
 			for ( const auto& Entry : Array )
 			{
-				Memory::Structs::Field F;
+				Field F;
 				JSONToField( Entry, F );
 				Template->Fields.push_back( F );
 			}
@@ -97,15 +107,15 @@ namespace ClassManager
 
 		struct ClassFile
 		{
-			ClassFile( const std::filesystem::path& Root, std::filesystem::path FilePath, const std::optional<Memory::Structs::Info>& Template = std::nullopt ) : Absolute( std::move( FilePath ) ), Relative( Absolute.lexically_relative( Root ) )
+			ClassFile( const std::filesystem::path& Root, std::filesystem::path FilePath, const std::optional<Info>& Template = std::nullopt ) : Absolute( std::move( FilePath ) ), Relative( Absolute.lexically_relative( Root ) )
 			{
 				if ( Template.has_value() )
 				{
-					this->BackingData = std::make_shared<Memory::Structs::Info>( Template.value() );
+					this->BackingData = std::make_shared<Info>( Template.value() );
 				}
 				else
 				{
-					this->BackingData = std::make_shared<Memory::Structs::Info>( Memory::Structs::Empty );
+					this->BackingData = std::make_shared<Info>( Templates::Empty );
 				}
 			}
 
@@ -121,20 +131,22 @@ namespace ClassManager
 				JSONToTemplate( J, BackingData.get() );
 			}
 
-			void Save() const
+			bool Save() const
 			{
 				json J = {};
 				TemplateToJSON( J, BackingData.get() );
 				std::ofstream File( Absolute );
 
-				if ( !File.is_open() ) return; // TODO: Log
+				if ( !File.is_open() ) return false;
 
 				File << J.dump( 2 );
+
+				return true;
 			}
 
-			std::shared_ptr<Memory::Structs::Info> BackingData = nullptr;
-			std::filesystem::path                  Absolute    = {};
-			std::filesystem::path                  Relative    = {};
+			std::shared_ptr<Info> BackingData = nullptr;
+			std::filesystem::path Absolute    = {};
+			std::filesystem::path Relative    = {};
 		};
 
 		struct ClassDirectory
@@ -159,7 +171,9 @@ namespace ClassManager
 			std::filesystem::path  Path  = {};
 		};
 
-		std::unique_ptr<ClassDirectory> Root = nullptr;
+		std::unique_ptr<ClassDirectory>    Root      = nullptr;
+		std::vector<std::shared_ptr<Info>> NonBacked = {};
+		std::shared_ptr<Info>              Dummy     = std::make_shared<Info>( Templates::Empty );
 
 		std::optional<std::filesystem::path> GetRoot()
 		{
@@ -199,7 +213,32 @@ namespace ClassManager
 		}
 	}
 
-	std::shared_ptr<Memory::Structs::Info> GetInstanceFromPath( const std::string_view Path )
+	bool IsBacked( const std::shared_ptr<Info>& Template )
+	{
+		const auto Iterator = std::ranges::find( NonBacked, Template->ID, &Info::ID );
+
+		return Iterator == NonBacked.end();
+	}
+
+	std::shared_ptr<Info> GetEmptyView()
+	{
+		return Dummy;
+	}
+
+	std::shared_ptr<Info> InstantiateNonBacked( const size_t Size )
+	{
+		++CurrentID;
+
+		auto Instance  = std::make_shared<Info>( Templates::Empty );
+		Instance->Size = Size;
+		Instance->ID   = CurrentID;
+
+		NonBacked.push_back( Instance );
+
+		return Instance;
+	}
+
+	std::shared_ptr<Info> GetInstanceFromPath( const std::string_view Path )
 	{
 		if ( !Root ) return nullptr;
 
@@ -215,7 +254,7 @@ namespace ClassManager
 		return Iterator->BackingData;
 	}
 
-	std::shared_ptr<Memory::Structs::Info> GetInstanceFromName( const std::string_view Name )
+	std::shared_ptr<Info> GetInstanceFromName( const std::string_view Name )
 	{
 		if ( !Root ) return nullptr;
 
@@ -231,7 +270,61 @@ namespace ClassManager
 		return Iterator->BackingData;
 	}
 
-	void AddToManager( Memory::Structs::Info* Template, std::string_view Path, bool IsCompileTimeTemplate )
+	// TODO: This code is pretty similar to AddToManager
+	bool BackAndSave( const std::shared_ptr<Info>& Template, const std::string_view Path )
+	{
+		if ( !Root ) return false;
+
+		const auto Start = Path.find_first_not_of( '/' );
+		const auto End   = Path.find_last_not_of( '/' );
+
+		std::filesystem::path ActualPath;
+
+		if ( Start == std::string_view::npos )
+		{
+			ActualPath = Root->Path;
+		}
+		else
+		{
+			ActualPath = Root->Path / Path.substr( Start, End - Start + 1 );
+		}
+
+		std::filesystem::create_directories( ActualPath );
+
+		const auto FilePath = ActualPath / ( Template->Label + ".json" );
+
+		// TODO: Match FilePath here and ask the user if they want to override a saved class or not
+		// ^ this probably entails changing the return value to a status, and having a bool argument 'OverwriteAllowed' defaulted to false?
+
+		ClassFile Instance = { Root->Path, ActualPath, *Template };
+
+		Root->Files.push_back( std::move( Instance ) );
+
+		const auto SubRange = std::ranges::remove( NonBacked, Template->ID, &Info::ID );
+		NonBacked.erase( SubRange.begin(), SubRange.end() );
+
+		return true;
+	}
+
+	bool SaveToFile( const std::shared_ptr<Info>& Template )
+	{
+		if ( !Root ) return false;
+
+		const uint64_t ToMatch = Template->ID;
+
+		auto TryMatch = [&] ( const ClassFile& File )
+		{
+			return File.BackingData->ID == ToMatch;
+		};
+
+		const auto Iterator = std::ranges::find_if( Root->Files, TryMatch );
+
+		if ( Iterator == Root->Files.end() ) return false;
+
+		return Iterator->Save();
+	}
+
+	void AddToManager( Info* Template, const std::string_view Path, [[maybe_unused]] bool IsCompileTimeTemplate )
 	{
 		if ( !Root ) return;
 
@@ -261,10 +354,11 @@ namespace ClassManager
 		if ( std::filesystem::exists( FilePath ) )
 		{
 			Instance.Parse();
+			Root->Files.push_back( std::move( Instance ) );
 		}
 		else
 		{
-			Instance.Save();
+			( void )Instance.Save();
 			Template = Instance.BackingData.get();
 			Root->Files.push_back( std::move( Instance ) );
 		}
@@ -278,16 +372,47 @@ namespace ClassManager
 
 		Root = std::make_unique<ClassDirectory>( Path.value() );
 
-		AddToManager( &Memory::Structs::LIST_ENTRY, "/Win32/Types/", true );
-		AddToManager( &Memory::Structs::PEB_LDR_DATA, "/Win32/Usermode/", true );
+		// Do we actually want compile-time templates to be saved to file?
+		// These should honestly be non-backed? %appdata%/Reflection/Classes should probably be exclusively user-defined
+		AddToManager( &Templates::LIST_ENTRY, "/Win32/Types/", true );
+		AddToManager( &Templates::PEB_LDR_DATA, "/Win32/Usermode/", true );
 
-		AddToManager( &Memory::Structs::CURDIR, "/Win32/Types/", true );
-		AddToManager( &Memory::Structs::UNICODE_STRING, "/Win32/Types/", true );
-		AddToManager( &Memory::Structs::RTL_DRIVE_LETTER_CURDIR, "/Win32/Types/", true );
-		AddToManager( &Memory::Structs::RTL_USER_PROCESS_PARAMETERS, "/Win32/Usermode/", true );
+		AddToManager( &Templates::CURDIR, "/Win32/Types/", true );
+		AddToManager( &Templates::UNICODE_STRING, "/Win32/Types/", true );
+		AddToManager( &Templates::RTL_DRIVE_LETTER_CURDIR, "/Win32/Types/", true );
+		AddToManager( &Templates::RTL_USER_PROCESS_PARAMETERS, "/Win32/Usermode/", true );
 
-		AddToManager( &Memory::Structs::PEB, "/Win32/Usermode/", true );
-		AddToManager( &Memory::Structs::KERNEL_CALLBACK_TABLE, "/Win32/Usermode/", true );
+		AddToManager( &Templates::PEB, "/Win32/Usermode/", true );
+		AddToManager( &Templates::KERNEL_CALLBACK_TABLE, "/Win32/Usermode/", true );
+
+		auto Flatten = [&] ( Field& Field )
+		{
+			if ( !std::holds_alternative<std::string>( Field.Embedded ) )
+			{
+				return;
+			}
+
+			const auto& String = std::get<std::string>( Field.Embedded );
+
+			if ( String == _( "RESERVED_NONE" ) ) return;
+
+			Field.Embedded = GetInstanceFromName( String );
+
+			if ( Field.Type == T_EmbeddedClass )
+			{
+				const auto& EmbeddedData = std::get<std::shared_ptr<Info>>( Field.Embedded );
+				Field.Size               = EmbeddedData ? EmbeddedData->Size : 8;
+			}
+		};
+
+		auto Populate = [&] ( const ClassFile& File )
+		{
+			if ( !File.BackingData ) return;
+
+			std::ranges::for_each( File.BackingData->Fields, Flatten );
+		};
+
+		std::ranges::for_each( Root->Files, Populate );
 
 		std::println( "Files Size {}", Root->Files.size() );
 

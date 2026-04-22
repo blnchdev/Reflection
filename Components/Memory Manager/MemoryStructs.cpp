@@ -1,6 +1,6 @@
 #include "MemoryStructs.h"
 
-namespace Memory::Structs
+namespace Memory
 {
 	void Info::RefreshMaxWidth()
 	{
@@ -13,9 +13,11 @@ namespace Memory::Structs
 		{
 			szLabel = max( szLabel, Renderer::FontManager::FontSize(Field.Name, 16.f, false).x );
 
-			if ( Field.EmbeddedInfo )
+			const bool ContainsData = std::holds_alternative<std::shared_ptr<Info>>( Field.Embedded );
+
+			if ( ContainsData )
 			{
-				auto TemporaryLabel = "<" + Field.EmbeddedInfo->Label + ">"; // This is pretty expensive but shoooould be okay?
+				auto TemporaryLabel = "<" + std::get<std::shared_ptr<Info>>( Field.Embedded )->Label + ">"; // This is pretty expensive but shoooould be okay?
 				szType              = max( szType, Renderer::FontManager::FontSize(TemporaryLabel, 16.f, false).x );
 			}
 

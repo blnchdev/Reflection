@@ -21,7 +21,7 @@ namespace Objects
 		}
 	}
 
-	void Line::Render( Vector2f& Cursor, Renderer::Layout::RenderParameters* RenderData, Memory::Structs::Info* Structure, Memory::Structs::Field* Field, size_t& i, bool IsSelected )
+	void Line::Render( Vector2f& Cursor, Renderer::Layout::RenderParameters* RenderData, Memory::Info* BackingData, Memory::Field* Field, size_t& i, bool IsSelected )
 	{
 		Origin = Cursor;
 
@@ -35,7 +35,7 @@ namespace Objects
 
 		Renderer::Layout::LineData& Data = this->Owner->Data;
 
-		Renderer::Layout::Internals::RenderLine( Cursor, RenderData, Data, Structure, Field, i, IsSelected );
+		Renderer::Layout::Internals::RenderLine( Cursor, RenderData, Data, BackingData, Field, i, IsSelected );
 
 		if ( Data.Embedded.Child )
 		{
