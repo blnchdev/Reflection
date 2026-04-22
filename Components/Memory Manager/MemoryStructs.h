@@ -29,6 +29,19 @@ namespace Memory
 
 		std::variant<std::shared_ptr<Info>, std::string> Embedded = _( "RESERVED_NONE" );
 
+		// Might return nullptr
+		Info* GetEmbeddedData() const
+		{
+			const auto* P = std::get_if<std::shared_ptr<Info>>( &this->Embedded );
+			return P && *P ? P->get() : nullptr;
+		}
+
+		bool IsEmptyView() const
+		{
+			const auto* P = std::get_if<std::string>( &this->Embedded );
+			return P && *P == _( "RESERVED_NONE" );
+		}
+
 		bool IsPadding() const { return Type == T_x8 || Type == T_x16 || Type == T_x32 || Type == T_x64; }
 		bool IsPointer() const { return Type == T_pClass || Type == T_pFunction || Type == T_rawPointer || Type == T_VMT || Type == T_charPtr_array || Type == T_widePtr_array; }
 		bool IsPOD() const { return !IsPointer() && Type != T_EmbeddedClass && Type != T_custom; }
@@ -36,9 +49,7 @@ namespace Memory
 		Field()  = default;
 		~Field() = default;
 
-		Field( const Field& Other ) : Name( Other.Name ), Offset( Other.Offset ), Size( Other.Size ), IsNamed( Other.IsNamed ), Type( Other.Type ), Embedded( Other.Embedded )
-		{
-		}
+		Field( const Field& Other ) = default;
 
 		Field& operator=( const Field& Other )
 		{

@@ -13,11 +13,11 @@ namespace Memory
 		{
 			szLabel = max( szLabel, Renderer::FontManager::FontSize(Field.Name, 16.f, false).x );
 
-			const bool ContainsData = std::holds_alternative<std::shared_ptr<Info>>( Field.Embedded );
+			const auto Data = Field.GetEmbeddedData();
 
-			if ( ContainsData )
+			if ( Data )
 			{
-				auto TemporaryLabel = "<" + std::get<std::shared_ptr<Info>>( Field.Embedded )->Label + ">"; // This is pretty expensive but shoooould be okay?
+				auto TemporaryLabel = "<" + Data->Label + ">"; // This is pretty expensive but shoooould be okay?
 				szType              = max( szType, Renderer::FontManager::FontSize(TemporaryLabel, 16.f, false).x );
 			}
 

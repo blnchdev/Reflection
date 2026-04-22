@@ -20,7 +20,7 @@ int main()
 	Config::Initialize();
 	ClassManager::Initialize();
 
-	if (!Renderer::Window::Initialize()) return 1;
+	if ( !Renderer::Window::Initialize() ) return 1;
 
 	Themes::Manager::Initialize();
 	Renderer::FontManager::Initialize();

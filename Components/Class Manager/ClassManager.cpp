@@ -84,10 +84,7 @@ namespace ClassManager
 			}
 			else
 			{
-				const auto RelativePath = J[ "Embedded" ].get<std::string>();
-				const auto Instance     = GetInstanceFromPath( RelativePath );
-
-				Field.Embedded = Instance;
+				Field.Embedded = J[ "Embedded" ].get<std::string>();
 			}
 		}
 
@@ -126,7 +123,7 @@ namespace ClassManager
 
 				const json J = nlohmann::json::parse( File, nullptr, false );
 
-				if ( !J.is_discarded() ) return; // TODO: Log
+				if ( J.is_discarded() ) return; // TODO: Log
 
 				JSONToTemplate( J, BackingData.get() );
 			}
@@ -158,12 +155,17 @@ namespace ClassManager
 					Renderer::NotificationManager::AddNotification( _( "Error with ClassDirectory" ), _( "Root is not a directory. Classes can not be saved or loaded." ), Renderer::Error, true );
 					return;
 				}
+			}
 
+			void Iterate()
+			{
 				for ( const auto& File : std::filesystem::recursive_directory_iterator{ Path } )
 				{
 					if ( !File.is_regular_file() || File.path().extension() != ".json" ) continue;
 
-					Files.emplace_back( File.path(), Path );
+					auto& Entry = Files.emplace_back( Path, File.path() );
+					Entry.Parse();
+					std::println( "ClassDirectory Parsed {}", Entry.BackingData->Label );
 				}
 			}
 
@@ -346,6 +348,17 @@ namespace ClassManager
 
 		const auto FilePath = ActualPath / ( Template->Label + ".json" );
 
+		const auto Iterator = std::ranges::find( Root->Files, FilePath, &ClassFile::Absolute );
+
+		// Already exist, don't push the same file multiple times
+		if ( Iterator != Root->Files.end() )
+		{
+			++CurrentID;
+			Iterator->BackingData->ID   = CurrentID;
+			Iterator->BackingData->Size = Template->Size;
+			return;
+		}
+
 		ClassFile Instance = { Root->Path, FilePath, *Template };
 
 		++CurrentID;
@@ -359,7 +372,6 @@ namespace ClassManager
 		else
 		{
 			( void )Instance.Save();
-			Template = Instance.BackingData.get();
 			Root->Files.push_back( std::move( Instance ) );
 		}
 	}
@@ -371,6 +383,7 @@ namespace ClassManager
 		if ( !Path.has_value() ) return;
 
 		Root = std::make_unique<ClassDirectory>( Path.value() );
+		Root->Iterate();
 
 		// Do we actually want compile-time templates to be saved to file?
 		// These should honestly be non-backed? %appdata%/Reflection/Classes should probably be exclusively user-defined
@@ -413,12 +426,5 @@ namespace ClassManager
 		};
 
 		std::ranges::for_each( Root->Files, Populate );
-
-		std::println( "Files Size {}", Root->Files.size() );
-
-		for ( const auto& Entry : Root->Files )
-		{
-			std::println( "{}", Entry.Absolute.string() );
-		}
 	}
 }

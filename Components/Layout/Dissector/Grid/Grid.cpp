@@ -960,27 +960,35 @@ namespace Renderer::Layout
 				LineSlot& Slot = Iterator->second;
 				LineData& LD   = Slot.Data;
 
-				const bool HasEmbeddedData = std::holds_alternative<std::shared_ptr<Memory::Info>>( Field.Embedded );
+				const auto EmbeddedData = Field.GetEmbeddedData();
+				const bool IsEmptyView  = Field.IsEmptyView();
 
 				if ( !LD.Embedded.Child )
 				{
-					const size_t PointerSize    = HasEmbeddedData ? std::get<std::shared_ptr<Memory::Info>>( Field.Embedded )->Size : 256;
-					View*        ChildView      = Owner->ExpandNode( Node, Field.Offset, PointerSize, Depth + 1 );
-					ChildView->Node->IsEmbedded = Field.Type == T_EmbeddedClass;
-					LD.Embedded.Child           = ChildView;
+					// We only want to populate *if* EmbeddedData is correct, or we do not expect an EmbeddedData
+					if ( IsEmptyView || EmbeddedData )
+					{
+						const size_t PointerSize    = EmbeddedData ? EmbeddedData->Size : 256;
+						View*        ChildView      = Owner->ExpandNode( Node, Field.Offset, PointerSize, Depth + 1 );
+						ChildView->Node->IsEmbedded = Field.Type == T_EmbeddedClass;
+						LD.Embedded.Child           = ChildView;
+					}
 				}
 
 				Slot.Line.EnsureExpandButton();
 
-				if ( HasEmbeddedData )
+				if ( LD.Embedded.Child )
 				{
-					LD.Embedded.Child->SetBackingData( std::get<std::shared_ptr<Memory::Info>>( Field.Embedded ) );
-				}
-				else
-				{
-					// TODO: There is probably a better way than a dummy Info
-					LD.Embedded.Child->SetBackingData( ClassManager::GetEmptyView() );
-					LD.Embedded.Child->SetSize( DefaultTabSize );
+					if ( EmbeddedData )
+					{
+						LD.Embedded.Child->SetBackingData( std::get<std::shared_ptr<Memory::Info>>( Field.Embedded ) );
+					}
+					else
+					{
+						// TODO: There is probably a better way than a dummy Info
+						LD.Embedded.Child->SetBackingData( ClassManager::GetEmptyView() );
+						LD.Embedded.Child->SetSize( DefaultTabSize );
+					}
 				}
 			}
 		}
