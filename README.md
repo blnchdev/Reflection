@@ -6,7 +6,7 @@
 
 > #### ⚠️ PRE-ALPHA 
 > Reflection is still in pre-alpha and still misses a lot of features, please keep this in mind before diving in! :3  
-> There are bugs everywhere, some features are still a big WIP but I'm posting this as a bit of a preview, or toy if you wish to play with it!
+> Some features are still a big WIP but I'm posting this as a bit of a preview, or toy if you wish to play with it!
 
 Reflection aims to replace the old and outdated [ReClass](https://github.com/CoolOppo/ReClass) and its variants.  
 
