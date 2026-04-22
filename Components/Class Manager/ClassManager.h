@@ -8,7 +8,8 @@ namespace Memory::Structs
 
 namespace ClassManager
 {
-	Memory::Structs::Info* GetInstanceFromName( std::string_view Name );
-	void                   AddToManager( Memory::Structs::Info* Template, std::string_view Path, bool IsCompileTimeTemplate = false );
-	void                   Initialize();
+	std::shared_ptr<Memory::Structs::Info> GetInstanceFromPath( std::string_view Path );
+	std::shared_ptr<Memory::Structs::Info> GetInstanceFromName( std::string_view Name );
+	void                                   AddToManager( Memory::Structs::Info* Template, std::string_view Path, bool IsCompileTimeTemplate = false );
+	void                                   Initialize();
 }

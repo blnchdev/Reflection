@@ -86,3 +86,5 @@ MSBuild_Logs/
 *.nuget.props
 *.nuget.targets
 Layout.ini
+/enc_temp_folder
+Reflection.sln

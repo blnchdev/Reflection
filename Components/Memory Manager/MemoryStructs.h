@@ -20,13 +20,13 @@ namespace Memory::Structs
 
 	struct Field
 	{
-		std::string       Name    = "";
+		std::string       Name;
 		size_t            Offset  = 0;
 		size_t            Size    = 0;
 		bool              IsNamed = false;
 		DataStructureType Type    = T_x64;
 
-		std::unique_ptr<Info> EmbeddedInfo = nullptr;
+		std::shared_ptr<Info> EmbeddedInfo = nullptr;
 
 		bool IsPadding() const { return Type == T_x8 || Type == T_x16 || Type == T_x32 || Type == T_x64; }
 		bool IsPointer() const { return Type == T_pClass || Type == T_pFunction || Type == T_rawPointer || Type == T_VMT || Type == T_charPtr_array || Type == T_widePtr_array; }
@@ -37,7 +37,7 @@ namespace Memory::Structs
 
 		Field( const Field& Other ) : Name( Other.Name ), Offset( Other.Offset ), Size( Other.Size ), IsNamed( Other.IsNamed ), Type( Other.Type )
 		{
-			if ( Other.EmbeddedInfo ) EmbeddedInfo = std::make_unique<Info>( *Other.EmbeddedInfo );
+			if ( Other.EmbeddedInfo ) EmbeddedInfo = Other.EmbeddedInfo;
 		}
 
 		Field& operator=( const Field& Other )
@@ -50,7 +50,7 @@ namespace Memory::Structs
 			IsNamed = Other.IsNamed;
 			Type    = Other.Type;
 
-			EmbeddedInfo = Other.EmbeddedInfo ? std::make_unique<Info>( *Other.EmbeddedInfo ) : nullptr;
+			EmbeddedInfo = Other.EmbeddedInfo;
 
 			return *this;
 		}

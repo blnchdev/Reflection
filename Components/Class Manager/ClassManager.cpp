@@ -74,7 +74,10 @@ namespace ClassManager
 			}
 			else
 			{
-				// TODO
+				const auto RelativePath = J[ "Embedded" ].get<std::string>();
+				const auto Instance     = GetInstanceFromPath( RelativePath );
+
+				Field.EmbeddedInfo = Instance;
 			}
 		}
 
@@ -98,11 +101,11 @@ namespace ClassManager
 			{
 				if ( Template.has_value() )
 				{
-					this->BackingData = std::make_unique<Memory::Structs::Info>( Template.value() );
+					this->BackingData = std::make_shared<Memory::Structs::Info>( Template.value() );
 				}
 				else
 				{
-					this->BackingData = std::make_unique<Memory::Structs::Info>( Memory::Structs::Empty );
+					this->BackingData = std::make_shared<Memory::Structs::Info>( Memory::Structs::Empty );
 				}
 			}
 
@@ -129,7 +132,7 @@ namespace ClassManager
 				File << J.dump( 2 );
 			}
 
-			std::unique_ptr<Memory::Structs::Info> BackingData = nullptr;
+			std::shared_ptr<Memory::Structs::Info> BackingData = nullptr;
 			std::filesystem::path                  Absolute    = {};
 			std::filesystem::path                  Relative    = {};
 		};
@@ -151,7 +154,6 @@ namespace ClassManager
 					Files.emplace_back( File.path(), Path );
 				}
 			}
-
 
 			std::vector<ClassFile> Files = {};
 			std::filesystem::path  Path  = {};
@@ -197,8 +199,36 @@ namespace ClassManager
 		}
 	}
 
-	Memory::Structs::Info* GetInstanceFromName( std::string_view Name )
+	std::shared_ptr<Memory::Structs::Info> GetInstanceFromPath( const std::string_view Path )
 	{
+		if ( !Root ) return nullptr;
+
+		auto TryMatch = [&] ( const ClassFile& File )
+		{
+			return File.BackingData && File.Relative.string() == Path;
+		};
+
+		const auto Iterator = std::ranges::find_if( Root->Files, TryMatch );
+
+		if ( Iterator == Root->Files.end() ) return nullptr;
+
+		return Iterator->BackingData;
+	}
+
+	std::shared_ptr<Memory::Structs::Info> GetInstanceFromName( const std::string_view Name )
+	{
+		if ( !Root ) return nullptr;
+
+		auto TryMatch = [&] ( const ClassFile& File )
+		{
+			return File.BackingData && Name == File.BackingData->Label;
+		};
+
+		const auto Iterator = std::ranges::find_if( Root->Files, TryMatch );
+
+		if ( Iterator == Root->Files.end() ) return nullptr;
+
+		return Iterator->BackingData;
 	}
 
 	void AddToManager( Memory::Structs::Info* Template, std::string_view Path, bool IsCompileTimeTemplate )
@@ -263,7 +293,7 @@ namespace ClassManager
 
 		for ( const auto& Entry : Root->Files )
 		{
-			std::println( "{}", Entry.Relative.string() );
+			std::println( "{}", Entry.Absolute.string() );
 		}
 	}
 }
