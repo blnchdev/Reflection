@@ -6,6 +6,7 @@
 #include <print>
 
 #include "Templates.h"
+#include "Components/Layout/Dissector/ToolBar/ClassBrowser/ClassBrowser.h"
 #include "Components/Memory Manager/MemoryStructs.h"
 #include "Components/Notifications/Notifications.h"
 
@@ -15,10 +16,10 @@ using json = nlohmann::ordered_json;
 
 namespace ClassManager
 {
+	using namespace Memory;
+
 	namespace
 	{
-		using namespace Memory;
-
 		int64_t CurrentID = 0;
 
 		// TODO: Favorites/Favorite Directories (store in Config)
@@ -102,50 +103,6 @@ namespace ClassManager
 			}
 		}
 
-		struct ClassFile
-		{
-			ClassFile( const std::filesystem::path& Root, std::filesystem::path FilePath, const std::optional<Info>& Template = std::nullopt ) : Absolute( std::move( FilePath ) ), Relative( Absolute.lexically_relative( Root ) )
-			{
-				if ( Template.has_value() )
-				{
-					this->BackingData = std::make_shared<Info>( Template.value() );
-				}
-				else
-				{
-					this->BackingData = std::make_shared<Info>( Templates::Empty );
-				}
-			}
-
-			void Parse() const
-			{
-				std::ifstream File( Absolute );
-				if ( !File.is_open() ) return; // TODO: Log
-
-				const json J = nlohmann::json::parse( File, nullptr, false );
-
-				if ( J.is_discarded() ) return; // TODO: Log
-
-				JSONToTemplate( J, BackingData.get() );
-			}
-
-			bool Save() const
-			{
-				json J = {};
-				TemplateToJSON( J, BackingData.get() );
-				std::ofstream File( Absolute );
-
-				if ( !File.is_open() ) return false;
-
-				File << J.dump( 2 );
-
-				return true;
-			}
-
-			std::shared_ptr<Info> BackingData = nullptr;
-			std::filesystem::path Absolute    = {};
-			std::filesystem::path Relative    = {};
-		};
-
 		struct ClassDirectory
 		{
 			explicit ClassDirectory( std::filesystem::path Root ) : Path( std::move( Root ) )
@@ -165,7 +122,6 @@ namespace ClassManager
 
 					auto& Entry = Files.emplace_back( Path, File.path() );
 					Entry.Parse();
-					std::println( "ClassDirectory Parsed {}", Entry.BackingData->Label );
 				}
 			}
 
@@ -215,11 +171,58 @@ namespace ClassManager
 		}
 	}
 
+	ClassFile::ClassFile( const std::filesystem::path& RootPath, std::filesystem::path FilePath, const std::optional<Memory::Info>& Template ) : Absolute( std::move( FilePath ) ), Relative( Absolute.lexically_relative( RootPath ) )
+	{
+		if ( Template.has_value() )
+		{
+			this->BackingData = std::make_shared<Info>( Template.value() );
+		}
+		else
+		{
+			this->BackingData = std::make_shared<Info>( Templates::Empty );
+		}
+	}
+
+	void ClassFile::Parse() const
+	{
+		std::ifstream File( Absolute );
+		if ( !File.is_open() ) return; // TODO: Log
+
+		const json J = nlohmann::json::parse( File, nullptr, false );
+
+		if ( J.is_discarded() ) return; // TODO: Log
+
+		JSONToTemplate( J, BackingData.get() );
+	}
+
+	bool ClassFile::Save() const
+	{
+		json J = {};
+		TemplateToJSON( J, BackingData.get() );
+		std::ofstream File( Absolute );
+
+		if ( !File.is_open() ) return false;
+
+		File << J.dump( 2 );
+
+		return true;
+	}
+
 	bool IsBacked( const std::shared_ptr<Info>& Template )
 	{
 		const auto Iterator = std::ranges::find( NonBacked, Template->ID, &Info::ID );
 
 		return Iterator == NonBacked.end();
+	}
+
+	std::filesystem::path GetRootPath()
+	{
+		return Root->Path;
+	}
+
+	const std::vector<ClassFile>& GetBackedFiles()
+	{
+		return Root->Files;
 	}
 
 	std::shared_ptr<Info> GetEmptyView()
@@ -426,5 +429,7 @@ namespace ClassManager
 		};
 
 		std::ranges::for_each( Root->Files, Populate );
+
+		Renderer::Layout::ClassBrowser::Initialize();
 	}
 }
