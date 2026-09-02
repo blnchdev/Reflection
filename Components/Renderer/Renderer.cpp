@@ -271,7 +271,7 @@ namespace Renderer
 
 		const auto NormalCursor = LoadCursorW( nullptr, IDC_ARROW );
 
-		const WNDCLASSEX ClassEx = { sizeof( WNDCLASSEX ), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle( nullptr ), hIcon, NormalCursor, nullptr, nullptr, WindowName, hIcon };
+		const WNDCLASSEX ClassEx = { sizeof( WNDCLASSEX ), CS_CLASSDC | CS_DBLCLKS, WndProc, 0L, 0L, GetModuleHandle( nullptr ), hIcon, NormalCursor, nullptr, nullptr, WindowName, hIcon };
 
 		RegisterClassEx( &ClassEx );
 

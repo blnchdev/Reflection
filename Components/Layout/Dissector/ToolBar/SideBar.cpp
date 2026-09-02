@@ -4,6 +4,7 @@
 #include "Components/Layout/Objects/Search Bar/SearchBar.h"
 #include "Components/Theme Manager/Theme Manager.h"
 #include "AttachPanel/AttachPanel.h"
+#include "ClassBrowser/ClassBrowser.h"
 #include "Components/Layout/Dissector/Grid/Grid.h"
 #include "TypePicker/TypePicker.h"
 
@@ -50,7 +51,7 @@ namespace Renderer::Layout
 			const auto Click = Themes::Manager::GetColor( "AddButton_Click"_H );
 
 			Vector2f LocalCursor = Cursor;
-			LocalCursor += AlwaysDisplayBarWidth / 2.f;
+			LocalCursor          += AlwaysDisplayBarWidth / 2.f;
 
 			NewTab.Position  = LocalCursor;
 			NewTab.Radius    = AlwaysDisplayBarWidth / 2.f;
@@ -59,7 +60,7 @@ namespace Renderer::Layout
 			NewTab.Render();
 
 			LocalCursor.y += AlwaysDisplayBarWidth / 2.f + PADDING / 2.f;
-			Cursor.y = LocalCursor.y;
+			Cursor.y      = LocalCursor.y;
 		}
 
 		// AOD Bar
@@ -68,7 +69,7 @@ namespace Renderer::Layout
 			Graphics::AddFilledRectangle( Cursor, AlwaysDisplayBarWidth, LastToolBarHeight, PopupBackground, 100.f );
 
 			Vector2f LocalCursor = Cursor;
-			LocalCursor.y += 15.f;
+			LocalCursor.y        += 15.f;
 
 			const uint32_t ButtonIdle   = Themes::Manager::GetColor( "Global_Text"_H );
 			const uint32_t ButtonActive = Themes::Manager::GetColor( "Global_ActiveText"_H );
@@ -90,7 +91,7 @@ namespace Renderer::Layout
 			Graphics::AddRectangle( Cursor, AlwaysDisplayBarWidth, LastToolBarHeight, BorderColor, 1.0f, 100.f );
 
 			LastToolBarHeight = LocalCursor.y - Cursor.y + 15.f;
-			Cursor.x += PADDING + AlwaysDisplayBarWidth;
+			Cursor.x          += PADDING + AlwaysDisplayBarWidth;
 		}
 
 		Cursor.y = OriginalY;
@@ -105,8 +106,12 @@ namespace Renderer::Layout
 			case 0:
 				AttachPanel::Render( Cursor, Vector2f( ModalWidth, Height ) );
 				break;
+			case 1:
+				ClassBrowser::Render( Cursor, Vector2f( ModalWidth, Height ) );
+				break;
 			case 2:
 				TypePicker::Render( Cursor, Vector2f( ModalWidth, Height ) );
+				break;
 			default:
 				break;
 			}
@@ -123,6 +128,9 @@ namespace Renderer::Layout
 		{
 		case 0:
 			ReturnValue |= AttachPanel::WndProc( Position, Message, wParam, lParam );
+			break;
+		case 1:
+			ReturnValue |= ClassBrowser::WndProc( Position, Message, wParam, lParam );
 			break;
 		case 2:
 			ReturnValue |= TypePicker::WndProc( Position, Message, wParam, lParam );

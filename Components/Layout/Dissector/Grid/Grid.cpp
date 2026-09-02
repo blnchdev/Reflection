@@ -331,7 +331,7 @@ namespace Renderer::Layout
 			LastFrameTime         = Now;
 
 			if ( fabsf( ScrollTarget - ScrollOffset ) > SCROLL_SNAP_DIST ) ScrollOffset += ( ScrollTarget - ScrollOffset ) * ( 1.f - std::expf( -SCROLL_DECAY * DeltaTime ) );
-			else ScrollOffset = ScrollTarget;
+			else ScrollOffset                                                           = ScrollTarget;
 
 			this->BackingData->RefreshMaxWidth();
 
@@ -370,7 +370,7 @@ namespace Renderer::Layout
 			this->LastOrigin = { GridData.Origin.x, Cursor.y };
 
 			Vector2f ScrolledCursor = Cursor;
-			ScrolledCursor.y -= ScrollOffset;
+			ScrolledCursor.y        -= ScrollOffset;
 
 			// Header
 			{
@@ -528,7 +528,7 @@ namespace Renderer::Layout
 			// Since this is user-modifiable we need a fallback while they're editing if the address string is too small
 			{
 				CalculateOffset( AddressStringSize, this->AddressString );
-				FloatBuffer += max( AddressStringSize, MaxAddressSize );
+				FloatBuffer                   += max( AddressStringSize, MaxAddressSize );
 				Data.Columns.NamedTypeOrLabel = FloatBuffer;
 			}
 			CalculateAndSetOffset( Data.Columns.HexOrLabel, max( BackingData->RenderMetrics.TypeWidth, BackingData->RenderMetrics.LabelWidth ) );
@@ -749,6 +749,36 @@ namespace Renderer::Layout
 
 		void RequestRecalculation() { this->RecalculationScheduled = true; }
 
+		bool IsOffsetSelected( const size_t Offset ) const { return SelectedOffsets.contains( Offset ); }
+
+		void HandleByteSelection( const size_t ClickedOffset )
+		{
+			SelectCursorViewIDX = this->IDX;
+
+			const bool Shift = GetKeyState( VK_SHIFT ) & 0x8000;
+			const bool Ctrl  = GetKeyState( VK_CONTROL ) & 0x8000;
+
+			if ( Shift && AnchorOffset != SIZE_MAX )
+			{
+				const size_t Low  = min( AnchorOffset, ClickedOffset );
+				const size_t High = max( AnchorOffset, ClickedOffset );
+
+				if ( !Ctrl ) SelectedOffsets.clear();
+				for ( size_t Off = Low; Off <= High; ++Off ) SelectedOffsets.insert( Off );
+			}
+			else if ( Ctrl )
+			{
+				if ( !SelectedOffsets.insert( ClickedOffset ).second ) SelectedOffsets.erase( ClickedOffset );
+				AnchorOffset = ClickedOffset;
+			}
+			else
+			{
+				SelectedOffsets.clear();
+				SelectedOffsets.insert( ClickedOffset );
+				AnchorOffset = ClickedOffset;
+			}
+		}
+
 		// Getter/Setters
 		// const Memory::Structs::Info& GetStructureTemplate() const { return BackingData; }
 		std::shared_ptr<Memory::Info> GetBackingData() const { return BackingData; }
@@ -825,6 +855,12 @@ namespace Renderer::Layout
 			RequiresImmediate       = false;
 			const size_t ActualSize = Size.value_or( Globals::GetDefaultDataStructureSize( NewType ) );
 
+			std::optional<std::string> PreservedName;
+			if ( const auto Existing = std::ranges::find_if( BackingData->Fields, [Offset] ( const Memory::Field& F ) { return F.Offset == Offset; } ); Existing != BackingData->Fields.end() && Existing->IsNamed )
+			{
+				PreservedName = Existing->Name;
+			}
+
 			EnsureNoOverlap( Offset, ActualSize );
 
 			const auto Iterator = std::ranges::find_if( BackingData->Fields, [Offset] ( const Memory::Field& F )
@@ -837,9 +873,10 @@ namespace Renderer::Layout
 
 			if ( RequiresPromotion )
 			{
-				std::string NewName  = std::format( "Off_{:X}", Offset );
+				std::string NewName  = PreservedName.value_or( std::format( "Off_{:X}", Offset ) );
 				auto&       Inserted = BackingData->Fields.emplace_back( NewType, Offset, NewName );
-				Target               = &Inserted;
+				if ( PreservedName ) Inserted.IsNamed = true;
+				Target = &Inserted;
 			}
 			else
 			{
@@ -936,7 +973,7 @@ namespace Renderer::Layout
 			float Height = LINE_HEIGHT;
 			for ( const auto* Line : RenderOrder )
 			{
-				Height += LINE_HEIGHT;
+				Height         += LINE_HEIGHT;
 				const auto& LD = Line->Data;
 				if ( LD.Embedded.Child && LD.Embedded.Expanded ) Height += LD.Embedded.Child->ComputeContentHeight();
 			}
@@ -963,7 +1000,9 @@ namespace Renderer::Layout
 				const auto EmbeddedData = Field.GetEmbeddedData();
 				const bool IsEmptyView  = Field.IsEmptyView();
 
-				if ( !LD.Embedded.Child )
+				const bool JustCreated = !LD.Embedded.Child;
+
+				if ( JustCreated )
 				{
 					// We only want to populate *if* EmbeddedData is correct, or we do not expect an EmbeddedData
 					if ( IsEmptyView || EmbeddedData )
@@ -983,10 +1022,10 @@ namespace Renderer::Layout
 					{
 						LD.Embedded.Child->SetBackingData( std::get<std::shared_ptr<Memory::Info>>( Field.Embedded ) );
 					}
-					else
+					else if ( JustCreated )
 					{
 						// TODO: There is probably a better way than a dummy Info
-						LD.Embedded.Child->SetBackingData( ClassManager::GetEmptyView() );
+						LD.Embedded.Child->SetBackingData( std::make_shared<Memory::Info>( *ClassManager::GetEmptyView() ) );
 						LD.Embedded.Child->SetSize( DefaultTabSize );
 					}
 				}
@@ -1047,8 +1086,8 @@ namespace Renderer::Layout
 					Pad.PaddingField = Memory::Field( ChunkSize, CurrentOffset );
 					Pad.SourceIndex  = -1;
 
-					auto& Slot = PaddingLines.emplace( CurrentOffset, LineSlot{} ).first->second;
-					Slot.Data  = std::move( Pad );
+					auto& Slot    = PaddingLines.emplace( CurrentOffset, LineSlot{} ).first->second;
+					Slot.Data     = std::move( Pad );
 					CurrentOffset += ChunkSize;
 				}
 			};
@@ -1198,7 +1237,7 @@ namespace Renderer::Layout
 		// Returns the width of the button so that we can render TabClose accordingly
 		float RenderSelectionButton( Objects::Button& Button, const Vector2f& Cursor, const float Tallest, const bool IsSelected )
 		{
-			Button.Position = Cursor;
+			Button.Position   = Cursor;
 			Button.Position.y -= 1.f;
 			Button.Resize();
 			Button.Size.x *= 2.f;
@@ -1268,9 +1307,7 @@ namespace Renderer::Layout
 			{
 				std::string String = {};
 
-				// So funnily enough, value_or returns by value, not reference
-				// Therefore, to avoid const_cast for AddModifiableText, we have to have a ternary operator here
-				auto Field = Data.IsSynthetic() ? Data.PaddingField.value() : Template->Fields[ Data.SourceIndex ];
+				Memory::Field& Field = Data.IsSynthetic() ? Data.PaddingField.value() : Template->Fields[ Data.SourceIndex ];
 
 				auto OnChange = [&, SourceIndex = Data.SourceIndex, Offset = Field.Offset, Size = Field.Size] ( const std::string& NewLabel, const bool WasCompleted )
 				{
@@ -1313,26 +1350,64 @@ namespace Renderer::Layout
 
 				const uintptr_t BufferBaseAddress = reinterpret_cast<uintptr_t>( RenderData->Buffer ) + Field.Offset;
 
+				const float RowTop = Cursor.y - LINE_HEIGHT / 2.f;
+
 				Cursor.x = Original.x + RenderData->Columns.HexOrLabel;
 				for ( auto y = 0u; y < min( 8u, static_cast<unsigned>(Field.Size) ); y++ )
 				{
+					const size_t ByteOffset   = Field.Offset + y;
+					const bool   ByteSelected = RenderData->Owner->IsOffsetSelected( ByteOffset );
+
+					if ( ByteSelected )
+					{
+						const uint32_t SelColor = Themes::Manager::GetColor( "MemoryGrid_Selected"_H );
+						Graphics::AddFilledRectangle( Vector2f( Cursor.x, RowTop ), RenderData->HexWidth, LINE_HEIGHT, SelColor );
+					}
+
 					String = std::format( "{:02X}", *reinterpret_cast<uint8_t*>( BufferBaseAddress + y ) );
 					FontManager::AddSelectableText( String, 16.f, Themes::Manager::GetColor( "MemoryGrid_Hex"_H ), Cursor, true, DT_VCENTER );
+
+					if ( ImGui::IsItemClicked() ) RenderData->Owner->HandleByteSelection( ByteOffset );
+
 					Cursor.x += RenderData->HexWidth + ELEMENT_PADDING;
 				}
 
 				Cursor.x = Original.x + RenderData->Columns.Chars;
 				for ( auto y = 0u; y < min( 8u, static_cast<unsigned>(Field.Size) ); y++ )
 				{
+					const size_t ByteOffset   = Field.Offset + y;
+					const bool   ByteSelected = RenderData->Owner->IsOffsetSelected( ByteOffset );
+
+					if ( ByteSelected )
+					{
+						const uint32_t SelColor = Themes::Manager::GetColor( "MemoryGrid_Selected"_H );
+						Graphics::AddFilledRectangle( Vector2f( Cursor.x, RowTop ), RenderData->CharWidth, LINE_HEIGHT, SelColor );
+					}
+
 					String = std::format( "{}", Helpers::SanitizeByte( *reinterpret_cast<char*>( BufferBaseAddress + y ) ) );
 					FontManager::AddSelectableText( String, 16.f, Themes::Manager::GetColor( "MemoryGrid_Char"_H ), Cursor, false, DT_VCENTER );
+
+					if ( ImGui::IsItemClicked() ) RenderData->Owner->HandleByteSelection( ByteOffset );
+
 					Cursor.x += RenderData->CharWidth;
 				}
 
 				Cursor.x = Original.x + RenderData->Columns.Formatted;
 				{
-					String = Helpers::GetFormattedData( Field.Type, reinterpret_cast<void*>( BufferBaseAddress ) );
-					FontManager::AddSelectableText( String, 16.f, Themes::Manager::GetColor( "MemoryGrid_Formatted"_H ), Cursor, false, DT_VCENTER );
+					const uintptr_t VA = Field.Size == 8 ? *reinterpret_cast<uintptr_t*>( BufferBaseAddress ) : 0;
+
+					if ( Field.Size == 8 && Process::IsValidPointer( RenderData->PID, VA ) )
+					{
+						Process::PointerData PointerData = {};
+						Process::ResolvePointer( RenderData->PID, VA, &PointerData );
+						String = Helpers::FormatPointer( &PointerData, VA );
+						FontManager::AddSelectableText( String, 16.f, Themes::Manager::GetColor( "MemoryGrid_Pointer"_H ), Cursor, false, DT_VCENTER );
+					}
+					else
+					{
+						String = Helpers::GetFormattedData( Field.Type, reinterpret_cast<void*>( BufferBaseAddress ) );
+						FontManager::AddSelectableText( String, 16.f, Themes::Manager::GetColor( "MemoryGrid_Formatted"_H ), Cursor, false, DT_VCENTER );
+					}
 				}
 
 				Cursor.x = Original.x;
@@ -1395,19 +1470,42 @@ namespace Renderer::Layout
 				else
 				{
 					const uintptr_t BufferBaseAddress = reinterpret_cast<uintptr_t>( RenderData->Buffer ) + Field->Offset;
-					std::string     String            = Helpers::GetFormattedData( Field->Type, reinterpret_cast<void*>( BufferBaseAddress ) );
 
 					if ( Field->Type == T_char_array || Field->Type == T_wide_array )
 					{
+						std::string String = Helpers::GetFormattedData( Field->Type, reinterpret_cast<void*>( BufferBaseAddress ) );
+
 						if ( Field->Size != String.length() )
 						{
 							Field->Size = String.length();
 							// TODO: Use ChangeSize instead of ChangeOffset once T_wide_array is handled.
 							RenderData->Owner->ChangeOffset( Field->Offset, T_char_array, Field->Size );
 						}
-					}
 
-					RenderToken( String, Themes::Manager::GetColor( "MemoryGrid_Formatted"_H ), false );
+						RenderToken( String, Themes::Manager::GetColor( "MemoryGrid_Formatted"_H ), false );
+					}
+					else if ( Field->Type == T_x64 )
+					{
+						const uintptr_t VA = *reinterpret_cast<uintptr_t*>( BufferBaseAddress );
+
+						if ( Process::IsValidPointer( RenderData->PID, VA ) )
+						{
+							Process::PointerData PointerData = {};
+							Process::ResolvePointer( RenderData->PID, VA, &PointerData );
+							std::string PointerString = Helpers::FormatPointer( &PointerData, VA );
+							RenderToken( PointerString, Themes::Manager::GetColor( "MemoryGrid_Pointer"_H ), false );
+						}
+						else
+						{
+							std::string String = Helpers::GetFormattedData( Field->Type, reinterpret_cast<void*>( BufferBaseAddress ) );
+							RenderToken( String, Themes::Manager::GetColor( "MemoryGrid_Formatted"_H ), false );
+						}
+					}
+					else
+					{
+						std::string String = Helpers::GetFormattedData( Field->Type, reinterpret_cast<void*>( BufferBaseAddress ) );
+						RenderToken( String, Themes::Manager::GetColor( "MemoryGrid_Formatted"_H ), false );
+					}
 				}
 
 				Cursor.x = Original.x;
