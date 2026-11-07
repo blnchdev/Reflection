@@ -1,7 +1,7 @@
 # Reflection
 
 <figure align="center">
-  <img src="https://blanche.dev/img/Reflection/ReflectionThumb.png" width="1000" />
+  <img src="https://i.imgur.com/0QBT0Tw.png" width="1000" />
 </figure>
 
 > #### ⚠️ PRE-ALPHA 
@@ -19,13 +19,13 @@ ReClass is ancient, back when most processes were 32-bit, and when UI and UX was
 Reflection also allows for the saving (and therefore sharing) of user-defined classes, an example is attached with the program:
 
 <figure align="center">
-  <img src="https://blanche.dev/img/Reflection/ExampleStruct.png" width="600" />
+  <img src="https://i.imgur.com/e0Acemz.png" width="600" />
 </figure>
 
 Which, when accessed through the class viewer, results in this:
 
 <figure align="center">
-  <img src="https://blanche.dev/img/Reflection/ExampleStruct2.png" width="800" />
+  <img src="https://i.imgur.com/43gIFtg.png" width="800" />
 </figure>
 
 This enables users to work together on reverse engineering!
@@ -36,7 +36,7 @@ This enables users to work together on reverse engineering!
 Just like ReClass, Reflection allows you to index an address in this fashion:
 
 <figure align="center">
-  <img src="https://blanche.dev/img/Reflection/VirtualAddressShowcase.png" width="600" />
+  <img src="https://i.imgur.com/hbmZuF3.png" width="600" />
 </figure>
 
 With those keywords:
@@ -56,7 +56,7 @@ With those keywords:
 
 | PEB Raw View                                     | Formatted                                        |
 |--------------------------------------------------|--------------------------------------------------|
-| <figure align="center"><img src="https://blanche.dev/img/Reflection/PEB1.png" width="400" /></figure> | <figure align="center"><img src="https://blanche.dev/img/Reflection/PEB2.png" width="400" /></figure>
+| <figure align="center"><img src="https://i.imgur.com/tyiQEDp.png" width="400" /></figure> | <figure align="center"><img src="https://i.imgur.com/vpXZoHO.png" width="400" /></figure>
 
 Of course, the parser supports both decimal and hexadecimal values. Hexadecimal values need to be prefixed by `0x` to be valid though.  
 
@@ -64,26 +64,26 @@ Of course, the parser supports both decimal and hexadecimal values. Hexadecimal 
 If possible, Virtual Addresses are indexed via their contained module, e.g.:  
 
 <figure align="center">
-  <img src="https://blanche.dev/img/Reflection/Module.png" width="600" />
+  <img src="https://i.imgur.com/JdkiY3N.png" width="600" />
 </figure>
 
 Pointers also check for validity, an invalid (or nullptr) pointer will render differently, e.g.:  
 
 <figure align="center">
-  <img src="https://blanche.dev/img/Reflection/nullptr.png" width="600" />
+  <img src="https://i.imgur.com/KI0VfNV.png" width="600" />
 </figure>
 
 #### Function Disassembling
 Through Zydis, ASM bytecode is disassembled back into human readable instructions as such:  
 
 <figure align="center">
-  <img src="https://blanche.dev/img/Reflection/Zydis1.png" width="200" />
+  <img src="https://i.imgur.com/SKTGhdk.png" width="200" />
 </figure>
 
 The original code being:
 
 <figure align="center">
-  <img src="https://blanche.dev/img/Reflection/Zydis2.png" width="200" />
+  <img src="https://i.imgur.com/y1sizNL.png" width="200" />
 </figure>
 
 ### Credits
