@@ -55,14 +55,20 @@ namespace Renderer
 
 	void FontManager::AddSelectableText( std::string_view Text, const float Size, const uint32_t Color, const Vector2f Position, const bool CodeFont, const uint32_t Flags, const float WrappingLength )
 	{
-		ImFont*      Font     = GetFont( Size, CodeFont );
-		const ImVec2 TextSize = Font->CalcTextSizeA( Size, FLT_MAX, WrappingLength > 0.f ? WrappingLength : FLT_MAX, Text.data(), Text.data() + Text.size() );
-		ImVec2       Pos      = { Position.x, Position.y };
+		const char* Begin = Text.empty() ? "" : Text.data();
+
+		ImFont* Font = GetFont( Size, CodeFont );
+
+		const ImVec2 TextSize = Font->CalcTextSizeA( Size, FLT_MAX, WrappingLength > 0.f ? WrappingLength : FLT_MAX, Begin, Begin + Text.size() );
+
+		ImVec2 Pos = { Position.x, Position.y };
 
 		if ( Flags & DT_CENTER ) Pos.x -= TextSize.x / 2.f;
-
 		if ( Flags & DT_VCENTER ) Pos.y -= TextSize.y / 2.f;
 
+		static thread_local std::string Scratch;
+
+		Scratch.assign( Text );
 		ImGui::PushFont( Font );
 
 		ImGui::PushStyleColor( ImGuiCol_FrameBg, ImVec4( 0, 0, 0, 0 ) );
@@ -76,11 +82,12 @@ namespace Renderer
 		ImGui::SetCursorScreenPos( Pos );
 
 		ImGui::PushID( static_cast<int>( Position.x * 6719.f + Position.y * 3541.f ) );
-		ImGui::SetNextItemWidth( TextSize.x );
+		ImGui::SetNextItemWidth( ( std::max )( TextSize.x, 1.f ) ); 
+
 		ImGui::InputText(
 		                 _( "##selectable_text" ),
-		                 const_cast<char*>( Text.data() ), // const_cast necessary, should not matter considering ImGuiInputTextFlags_ReadOnly
-		                 Text.size(),
+		                 Scratch.data(),
+		                 Scratch.size() + 1,
 		                 ImGuiInputTextFlags_ReadOnly | ImGuiInputTextFlags_NoHorizontalScroll
 		                );
 
@@ -90,13 +97,8 @@ namespace Renderer
 		ImGui::PopID();
 	}
 
-	struct ModifiableTextContext
-	{
-		std::string*                             Text     = nullptr;
-		std::function<void( std::string, bool )> Callback = nullptr;
-	};
 
-	void FontManager::AddModifiableText( std::string& Text, const float Size, const uint32_t Color, const Vector2f Position, const bool CodeFont, const uint32_t Flags, const float WrappingLength, const ModifiableTextCallback& OnChange )
+	void FontManager::AddModifiableText( std::string& Text, const float Size, const uint32_t Color, const Vector2f Position, const bool CodeFont, const uint32_t Flags, const float WrappingLength, const ModifiableTextCallback& OnChange, const uint64_t StableID )
 	{
 		ImFont*      Font     = GetFont( Size, CodeFont );
 		const ImVec2 TextSize = Font->CalcTextSizeA( Size, FLT_MAX, WrappingLength > 0.f ? WrappingLength : FLT_MAX, Text.c_str() );
@@ -117,39 +119,35 @@ namespace Renderer
 
 		ImGui::SetCursorScreenPos( Pos );
 
-		static ModifiableTextContext Context;
-		Context = { .Text = &Text, .Callback = OnChange };
+		if ( StableID ) ImGui::PushID( reinterpret_cast<const void*>( static_cast<uintptr_t>( StableID ) ) );
+		else ImGui::PushID( &Text );
 
 		auto ResizeCallback = [] ( ImGuiInputTextCallbackData* Data ) -> int
 		{
-			const auto* C        = static_cast<ModifiableTextContext*>( Data->UserData );
-			const auto& Callback = C->Callback;
-
 			if ( Data->EventFlag == ImGuiInputTextFlags_CallbackResize )
 			{
-				C->Text->resize( Data->BufTextLen );
-				Data->Buf = C->Text->data();
-				if ( Callback ) Callback( *C->Text, false );
+				auto* String = static_cast<std::string*>( Data->UserData );
+				String->resize( static_cast<size_t>( Data->BufTextLen ) );
+				Data->Buf = String->data();
 			}
 
 			return 0;
 		};
 
-		ImGui::PushID( static_cast<int>( Position.x * 6719.f + Position.y * 3541.f ) );
-		ImGui::SetNextItemWidth( TextSize.x );
-		std::string Cpy = Text;
+		ImGui::SetNextItemWidth( ( std::max )( TextSize.x, Size * 0.5f ) );
 		ImGui::InputText(
 		                 _( "##modifiable_text" ),
 		                 Text.data(),
 		                 Text.capacity() + 1,
 		                 ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_CallbackCompletion | ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_NoHorizontalScroll,
 		                 ResizeCallback,
-		                 &Context
+		                 &Text
 		                );
 
-		if ( ImGui::IsItemDeactivatedAfterEdit() && OnChange )
+		if ( OnChange )
 		{
-			OnChange( Text, true );
+			if ( ImGui::IsItemEdited() ) OnChange( Text, false );
+			if ( ImGui::IsItemDeactivatedAfterEdit() ) OnChange( Text, true );
 		}
 
 		ImGui::PopStyleVar( 2 );

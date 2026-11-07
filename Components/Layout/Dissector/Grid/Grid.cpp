@@ -41,9 +41,6 @@ namespace Renderer::Layout
 		uint32_t GlobalIDX           = 0;
 		uint32_t SelectCursorViewIDX = 0;
 
-		uint32_t                                    ActiveTabIDX = 0;
-		std::vector<std::unique_ptr<ClassInstance>> Tabs         = {};
-
 		namespace Helpers
 		{
 			std::string FormatPointer( Process::PointerData* Data, uintptr_t VA )
@@ -67,7 +64,7 @@ namespace Renderer::Layout
 				std::string  String     = {};
 				const auto   WideString = static_cast<const wchar_t*>( Buffer );
 				const size_t Length     = wcsnlen( WideString, 24 );
-				String.append( WideString, WideString + Length );
+				for ( size_t i = 0; i < Length; i++ ) String.push_back( WideString[ i ] < 0x80 ? static_cast<char>( WideString[ i ] ) : '?' );
 				return String;
 			}
 
@@ -165,6 +162,11 @@ namespace Renderer::Layout
 				return Value >= 32 && Value <= 126 ? static_cast<char>( Value ) : '.';
 			}
 
+			constexpr uint64_t MakeTextID( const uint32_t ViewIDX, const size_t Offset, const uint8_t Slot )
+			{
+				return ( static_cast<uint64_t>( ViewIDX ) << 40 ) | ( ( static_cast<uint64_t>( Offset ) & 0xFFFFFFFFull ) << 8 ) | Slot;
+			}
+
 			Objects::Button MakeTransparentButton( const Objects::ButtonType Type )
 			{
 				Objects::Button Button;
@@ -201,13 +203,9 @@ namespace Renderer::Layout
 
 			std::vector<std::unique_ptr<View>> Children = {};
 
-			explicit ClassInstance( const uintptr_t BaseAddress, const size_t Size, const uint32_t PID )
-			{
-				Group         = std::make_unique<Memory::ReadGroup>();
-				RootData.Node = Group->AddRoot( BaseAddress, Size, PID );
-			}
+			explicit ClassInstance( uintptr_t BaseAddress, size_t Size, uint32_t PID );
+			~ClassInstance();
 
-			// Defined lower because we need View definition for this
 			View* ExpandNode( Memory::InstanceData* ParentNode, size_t OffsetInParent, size_t ReadSize, uint32_t Depth );
 
 			void ScheduleRead( Memory::Manager& Manager ) const
@@ -215,6 +213,9 @@ namespace Renderer::Layout
 				Manager.Schedule( Group.get() );
 			}
 		};
+
+		uint32_t                                    ActiveTabIDX = 0;
+		std::vector<std::unique_ptr<ClassInstance>> Tabs         = {};
 	}
 
 	// Forward Declarations
@@ -337,6 +338,8 @@ namespace Renderer::Layout
 
 			const auto WindowData = Window::GetWindowData();
 
+			if ( !Snapshot.Buffer.empty() && Snapshot.Buffer.size() < GetSize() ) Snapshot.Buffer.resize( GetSize() );
+
 			Data.Owner       = this;
 			Data.WindowSize  = Vector2f( WindowData->Width, WindowData->Height );
 			Data.BaseAddress = Node->GetAddress();
@@ -422,7 +425,7 @@ namespace Renderer::Layout
 							this->ScheduleRead();
 						};
 
-						FontManager::AddModifiableText( String, 16.f, Themes::Manager::GetColor( "MemoryGrid_Offset"_H ), ScrolledCursor, true, DT_VCENTER, 0, OnChange );
+						FontManager::AddModifiableText( String, 16.f, Themes::Manager::GetColor( "MemoryGrid_Offset"_H ), ScrolledCursor, true, DT_VCENTER, 0, OnChange, Helpers::MakeTextID( this->IDX, 0, 3 ) );
 					}
 					else
 					{
@@ -447,7 +450,7 @@ namespace Renderer::Layout
 
 					FontManager::AddSelectableText( "Class '", 16.f, Color, ScrolledCursor, false, DT_VCENTER );
 					ScrolledCursor.x += Prefix.x;
-					FontManager::AddModifiableText( this->BackingData->Label, 16.f, Color, ScrolledCursor, false, DT_VCENTER, 0, OnChange );
+					FontManager::AddModifiableText( this->BackingData->Label, 16.f, Color, ScrolledCursor, false, DT_VCENTER, 0, OnChange, Helpers::MakeTextID( this->IDX, 0, 4 ) );
 					ScrolledCursor.x += FontManager::FontSize( this->BackingData->Label, 16.f, false ).x;
 					FontManager::AddSelectableText( "'", 16.f, Color, ScrolledCursor, false, DT_VCENTER );
 					ScrolledCursor.x += Suffix.x + HEADER_PADDING;
@@ -470,7 +473,7 @@ namespace Renderer::Layout
 						}
 
 						const uintptr_t NewSize = Parser::ParseComplex( this->SizeString, this->Node->GetPID() );
-						this->Node->SetSize( NewSize );
+						this->SetSize( NewSize );
 						this->BackingData->Size      = NewSize;
 						this->RecalculationScheduled = true;
 						this->ScheduleRead();
@@ -478,7 +481,7 @@ namespace Renderer::Layout
 
 					FontManager::AddSelectableText( "Size [", 16.f, Color, ScrolledCursor, false, DT_VCENTER );
 					ScrolledCursor.x += Prefix.x;
-					FontManager::AddModifiableText( String, 16.f, Color, ScrolledCursor, false, DT_VCENTER, 0, OnChange );
+					FontManager::AddModifiableText( String, 16.f, Color, ScrolledCursor, false, DT_VCENTER, 0, OnChange, Helpers::MakeTextID( this->IDX, 0, 5 ) );
 					ScrolledCursor.x += FontManager::FontSize( String, 16.f, false ).x;
 					FontManager::AddSelectableText( " bytes]", 16.f, Color, ScrolledCursor, false, DT_VCENTER );
 				}
@@ -514,23 +517,14 @@ namespace Renderer::Layout
 				Destination = FloatBuffer;
 			};
 
-			auto CalculateOffset = [&] ( float& Destination, std::variant<std::reference_wrapper<const std::string>, const char*, float> Variable )
-			{
-				Destination = std::visit( Visitors, Variable ) + ELEMENT_PADDING;
-			};
-
 			const float HexRepresentationSize  = ( HexSize.x + ELEMENT_PADDING ) * 8.f - ELEMENT_PADDING;
 			const float CharRepresentationSize = CharSize.x * 8.f + ELEMENT_PADDING;
-			float       AddressStringSize;
 
 			Data.Columns.Offset = 0.f;
 			CalculateAndSetOffset( Data.Columns.Address, _( "00000" ) );
-			// Since this is user-modifiable we need a fallback while they're editing if the address string is too small
-			{
-				CalculateOffset( AddressStringSize, this->AddressString );
-				FloatBuffer                   += max( AddressStringSize, MaxAddressSize );
-				Data.Columns.NamedTypeOrLabel = FloatBuffer;
-			}
+
+			FloatBuffer                   += MaxAddressSize;
+			Data.Columns.NamedTypeOrLabel = FloatBuffer;
 			CalculateAndSetOffset( Data.Columns.HexOrLabel, max( BackingData->RenderMetrics.TypeWidth, BackingData->RenderMetrics.LabelWidth ) );
 			CalculateAndSetOffset( Data.Columns.Chars, max( HexRepresentationSize, BackingData->RenderMetrics.LabelWidth ) );
 			CalculateAndSetOffset( Data.Columns.Formatted, CharRepresentationSize );
@@ -572,6 +566,14 @@ namespace Renderer::Layout
 			};
 
 			std::ranges::for_each( RenderOrder, RenderSlot );
+
+			if ( !PendingFieldChanges.empty() )
+			{
+				const auto Pending = std::move( PendingFieldChanges );
+				PendingFieldChanges.clear();
+
+				for ( const auto& [ Offset, Type, Size ] : Pending ) ChangeOffset( Offset, Type, Size );
+			}
 
 			if ( Data.ScheduleRecalculate )
 			{
@@ -712,31 +714,10 @@ namespace Renderer::Layout
 		{
 			bool RequiresImmediateChange = false;
 
-			auto HandleRecalculation = [&]()
-			{
-				if ( RequiresImmediateChange )
-				{
-					this->Recalculate();
-				}
-				else
-				{
-					this->RecalculationScheduled = true;
-				}
-			};
+			if ( !ChangeFieldType( Offset, Type, RequiresImmediateChange, Size ) ) return;
 
-			if ( ChangeFieldType( Offset, Type, RequiresImmediateChange, Size ) )
-			{
-				HandleRecalculation();
-				return;
-			}
-
-			if ( Offset >= Node->GetSize() ) return;
-
-			// TODO: Frankly this is left over code from my 1st iteration of this class, I'm unsure if we need this part?
-			RequiresImmediateChange = true;
-			Memory::Field NewField( Type, Offset );
-			BackingData->Fields.push_back( std::move( NewField ) );
-			HandleRecalculation();
+			if ( RequiresImmediateChange ) this->Recalculate();
+			else this->RecalculationScheduled = true;
 		}
 
 		void EnsureNoOverlap( const size_t Offset, const size_t Size ) const
@@ -748,6 +729,11 @@ namespace Renderer::Layout
 		}
 
 		void RequestRecalculation() { this->RecalculationScheduled = true; }
+
+		void QueueFieldChange( const size_t Offset, const DataStructureType Type, const size_t Size )
+		{
+			PendingFieldChanges.push_back( { Offset, Type, Size } );
+		}
 
 		bool IsOffsetSelected( const size_t Offset ) const { return SelectedOffsets.contains( Offset ); }
 
@@ -1122,6 +1108,15 @@ namespace Renderer::Layout
 		std::unordered_set<size_t> SelectedOffsets = {};
 		size_t                     AnchorOffset    = SIZE_MAX;
 
+		struct PendingFieldChange
+		{
+			size_t            Offset;
+			DataStructureType Type;
+			size_t            Size;
+		};
+
+		std::vector<PendingFieldChange> PendingFieldChanges = {};
+
 		// Timing Data
 		ViewClock::time_point LastFrameTime = std::chrono::high_resolution_clock::now();
 		ViewClock::time_point NextRead      = std::chrono::high_resolution_clock::now();
@@ -1187,15 +1182,20 @@ namespace Renderer::Layout
 				char StringBuffer[ 256 ];
 				ZydisFormatterFormatInstruction( &Formatter, &Instruction, Operands, Instruction.operand_count_visible, StringBuffer, sizeof( StringBuffer ), ChildView->GetAddress() + Offset, nullptr );
 
-				std::string Bytes;
-				std::ranges::for_each_n( Data + Offset, Instruction.length, [&Bytes] ( uint8_t Byte ) { Bytes += std::format( "{:02X} ", Byte ); } );
-
 				Cache.Lines.emplace_back( StringBuffer );
 				Offset += Instruction.length;
 			}
 
 			LD.Embedded.Disassembly = std::move( Cache );
 		}
+
+		ClassInstance::ClassInstance( const uintptr_t BaseAddress, const size_t Size, const uint32_t PID )
+		{
+			Group         = std::make_unique<Memory::ReadGroup>();
+			RootData.Node = Group->AddRoot( BaseAddress, Size, PID );
+		}
+
+		ClassInstance::~ClassInstance() = default;
 
 		View* ClassInstance::ExpandNode( Memory::InstanceData* ParentNode, size_t OffsetInParent, const size_t ReadSize, uint32_t Depth )
 		{
@@ -1235,7 +1235,7 @@ namespace Renderer::Layout
 	namespace
 	{
 		// Returns the width of the button so that we can render TabClose accordingly
-		float RenderSelectionButton( Objects::Button& Button, const Vector2f& Cursor, const float Tallest, const bool IsSelected )
+		float RenderSelectionButton( Objects::Button& Button, const Vector2f& Cursor, const float Tallest, const bool IsSelected, const bool HideLabel = false )
 		{
 			Button.Position   = Cursor;
 			Button.Position.y -= 1.f;
@@ -1243,12 +1243,18 @@ namespace Renderer::Layout
 			Button.Size.x *= 2.f;
 			Button.Size.y = Tallest;
 
+			if ( HideLabel ) Button.Size.x = max( Button.Size.x, Tallest * 2.f );
+
 			Button.Override.Border = IsSelected ? Themes::Manager::GetColor( "Global_Border"_H ) : Graphics::RGBA( 255, 255, 255, 0 );
 			Button.Override.Idle   = IsSelected ? Themes::Manager::GetColor( "Global_PopupBackground"_H ) : Graphics::RGBA( 255, 0, 0, 0 );
 			Button.IsRounded       = IsSelected;
 			Button.Rounding        = 5.f;
 			Button.Flags           = IsSelected ? ImDrawFlags_RoundCornersTop : 0;
+
+			std::string HiddenLabel;
+			if ( HideLabel ) HiddenLabel = std::exchange( Button.Label, {} );
 			Button.Render();
+			if ( HideLabel ) Button.Label = std::move( HiddenLabel );
 
 			if ( IsSelected )
 			{
@@ -1274,6 +1280,54 @@ namespace Renderer::Layout
 			Button.Render();
 		}
 
+		constexpr uint32_t NO_IDX = UINT32_MAX;
+
+		uint32_t    RenamingButtonIDX = NO_IDX;
+		bool        RenameJustStarted = false;
+		bool        RenameWasActive   = false;
+		int         RenameFrames      = 0;
+		std::string RenameOriginal    = {};
+
+		uint32_t LastTabClickIDX  = NO_IDX;
+		uint64_t LastTabClickTime = 0;
+
+		uint32_t PendingCloseIDX = NO_IDX;
+
+		void BeginTabRename( const Objects::Button& Button )
+		{
+			RenamingButtonIDX = Button.IDX;
+			RenameJustStarted = true;
+			RenameWasActive   = false;
+			RenameFrames      = 0;
+			RenameOriginal    = Button.Label;
+		}
+
+		void RenderRenameEditor( Objects::Button& Button, const Vector2f& Cursor, const float Tallest, const float TabWidth )
+		{
+			const float    FontSize = Button.FontSize > 0.f ? Button.FontSize : 16.f;
+			const Vector2f Center{ Cursor.x + TabWidth / 2.f, Cursor.y + Tallest / 2.f - 1.f };
+
+			if ( RenameJustStarted )
+			{
+				ImGui::SetKeyboardFocusHere();
+				RenameJustStarted = false;
+			}
+
+			FontManager::AddModifiableText( Button.Label, FontSize, Themes::Manager::GetColor( "MemoryGrid_Char"_H ), Center, false, DT_CENTER | DT_VCENTER, 0, {}, ( 1ull << 63 ) | Button.IDX );
+
+			const bool Active = ImGui::IsItemActive();
+			RenameWasActive   = RenameWasActive || Active;
+
+			const bool LostFocus    = RenameWasActive && !Active;
+			const bool NeverFocused = !RenameWasActive && ++RenameFrames > 120;
+
+			if ( LostFocus || NeverFocused )
+			{
+				if ( Button.Label.empty() ) Button.Label = RenameOriginal;
+				RenamingButtonIDX = NO_IDX;
+			}
+		}
+
 		struct TabButton
 		{
 			Objects::Button TabSelection;
@@ -1282,7 +1336,11 @@ namespace Renderer::Layout
 			void Render( Vector2f& Cursor, const float Tallest, const uint32_t SelectedIDX )
 			{
 				const bool  IsSelected = this->TabSelection.IDX == SelectedIDX;
-				const float TabWidth   = RenderSelectionButton( this->TabSelection, Cursor, Tallest, IsSelected );
+				const bool  IsRenaming = this->TabSelection.IDX == RenamingButtonIDX;
+				const float TabWidth   = RenderSelectionButton( this->TabSelection, Cursor, Tallest, IsSelected, IsRenaming );
+
+				if ( IsRenaming ) RenderRenameEditor( this->TabSelection, Cursor, Tallest, TabWidth );
+
 				RenderCloseButton( this->TabClose, Cursor, Tallest, TabWidth );
 				Cursor.x += TabWidth;
 			}
@@ -1296,6 +1354,26 @@ namespace Renderer::Layout
 		};
 
 		std::vector<TabButton> Buttons = {};
+
+		void ProcessPendingClose()
+		{
+			if ( PendingCloseIDX == NO_IDX ) return;
+
+			const uint32_t ViewIDX = std::exchange( PendingCloseIDX, NO_IDX );
+
+			const auto TabIterator = std::ranges::find_if( Tabs, [ViewIDX] ( const std::unique_ptr<ClassInstance>& C ) { return C->RootData.View->IDX == ViewIDX; } );
+			if ( TabIterator == Tabs.end() ) return;
+
+			const auto TabIDX   = TabIterator->get()->RootData.View->Buttons.TabIDX;
+			const auto CloseIDX = TabIterator->get()->RootData.View->Buttons.CloseIDX;
+
+			if ( RenamingButtonIDX == TabIDX ) RenamingButtonIDX = NO_IDX;
+
+			std::erase_if( Buttons, [&] ( const TabButton& P ) { return P.TabClose.IDX == CloseIDX || P.TabSelection.IDX == TabIDX; } );
+
+			// TODO: We might need to unschedule before destroying, investigate :p
+			Tabs.erase( TabIterator );
+		}
 	}
 
 	// Internal Functions
@@ -1345,7 +1423,7 @@ namespace Renderer::Layout
 				Cursor.x = Original.x + RenderData->Columns.NamedTypeOrLabel;
 				{
 					const uint32_t Color = Themes::Manager::GetColor( "MemoryGrid_PlaceholderLabel"_H );
-					FontManager::AddModifiableText( Field.Name, 16.f, Color, Cursor, false, DT_VCENTER, 0, OnChange );
+					FontManager::AddModifiableText( Field.Name, 16.f, Color, Cursor, false, DT_VCENTER, 0, OnChange, Helpers::MakeTextID( RenderData->Owner->IDX, Field.Offset, 1 ) );
 				}
 
 				const uintptr_t BufferBaseAddress = reinterpret_cast<uintptr_t>( RenderData->Buffer ) + Field.Offset;
@@ -1430,7 +1508,7 @@ namespace Renderer::Layout
 
 				auto RenderToken = [&] ( std::string& Text, const uint32_t Color, const bool Editable = false )
 				{
-					if ( Editable ) FontManager::AddModifiableText( Text, 16.f, Color, Cursor, false, DT_VCENTER, 0, OnTextChange );
+					if ( Editable ) FontManager::AddModifiableText( Text, 16.f, Color, Cursor, false, DT_VCENTER, 0, OnTextChange, Helpers::MakeTextID( RenderData->Owner->IDX, Field->Offset, 2 ) );
 					else FontManager::AddSelectableText( Text, 16.f, Color, Cursor, false, DT_VCENTER );
 				};
 
@@ -1475,11 +1553,12 @@ namespace Renderer::Layout
 					{
 						std::string String = Helpers::GetFormattedData( Field->Type, reinterpret_cast<void*>( BufferBaseAddress ) );
 
-						if ( Field->Size != String.length() )
+						const size_t ByteLength = Field->Type == T_wide_array ? String.length() * sizeof( wchar_t ) : String.length();
+						const size_t WantedSize = max( static_cast<size_t>( 1 ), ByteLength );
+
+						if ( Field->Size != WantedSize )
 						{
-							Field->Size = String.length();
-							// TODO: Use ChangeSize instead of ChangeOffset once T_wide_array is handled.
-							RenderData->Owner->ChangeOffset( Field->Offset, T_char_array, Field->Size );
+							RenderData->Owner->QueueFieldChange( Field->Offset, Field->Type, WantedSize );
 						}
 
 						RenderToken( String, Themes::Manager::GetColor( "MemoryGrid_Formatted"_H ), false );
@@ -1611,6 +1690,8 @@ namespace Renderer::Layout
 			BackingData = ClassManager::GetInstanceFromName( TemplateName );
 		}
 
+		if ( !BackingData ) return;
+
 		ActualSize = BackingData->Size;
 
 		auto Class           = std::make_unique<ClassInstance>( Address, ActualSize, PID );
@@ -1648,6 +1729,7 @@ namespace Renderer::Layout
 	void Grid::Present( Vector2f& Cursor, const Vector2f AvailableSize, float Opacity )
 	{
 		Helpers::ReadConfig(); // TODO: We're calling this too much, consider making an Event fired by Config Popup closed?
+		ProcessPendingClose();
 
 		const Vector2f TitleBarSize = Titlebar::GetSize();
 		const float    Padding      = TitleBarSize.y * 0.5f;
@@ -1724,6 +1806,7 @@ namespace Renderer::Layout
 					ActiveTab->RootData.View->OnMouseWheel( wParam );
 					return true;
 				case WM_KEYDOWN:
+					if ( ImGui::GetIO().WantTextInput ) break;
 					ActiveTab->RootData.View->OnKeyDown( wParam );
 					return true;
 				default:
@@ -1767,19 +1850,27 @@ namespace Renderer::Layout
 
 		if ( Root->Buttons.CloseIDX == BID )
 		{
-			const auto ButtonIterator = std::ranges::find_if( Buttons, [Root] ( const auto& P )
-			{
-				return P.TabClose.IDX == Root->Buttons.CloseIDX || P.TabSelection.IDX == Root->Buttons.TabIDX;
-			} );
-
-			if ( ButtonIterator != Buttons.end() ) Buttons.erase( ButtonIterator );
-
-			// TODO: We might need to unschedule before destroying, investigate :p
-			Tabs.erase( Iterator );
+			PendingCloseIDX = Root->IDX;
 			return;
 		}
 
+		if ( RenamingButtonIDX == BID ) return;
+
 		ActiveTabIDX = Root->IDX;
+
+		const uint64_t Now = GetTickCount64();
+
+		if ( LastTabClickIDX == BID && Now - LastTabClickTime <= GetDoubleClickTime() )
+		{
+			LastTabClickIDX = NO_IDX;
+
+			const auto ButtonIterator = std::ranges::find_if( Buttons, [BID] ( const TabButton& B ) { return B.TabSelection.IDX == BID; } );
+			if ( ButtonIterator != Buttons.end() ) BeginTabRename( ButtonIterator->TabSelection );
+			return;
+		}
+
+		LastTabClickIDX  = BID;
+		LastTabClickTime = Now;
 	}
 
 	std::shared_ptr<Memory::Info> Grid::GetInfoForView( const View* View )
